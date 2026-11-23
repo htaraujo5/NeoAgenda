@@ -1,0 +1,20 @@
+Na próxima etapa, pedimos um teste prático. Ele não elimina ninguém: o código que você entregar será a base de uma conversa técnica com o time.
+
+Uso de IA é permitido e incentivado. Queremos ver como você trabalha de verdade.
+
+Desafio: API em .NET 8+ e front em Vue.js (sugerimos PrimeVue) para uma agenda de contatos (nome, e-mail, telefone), com estas regras:
+
+não permitir telefone duplicado, independentemente da formatação;
+importação de contatos via CSV, tratando linhas inválidas;
+exclusão com possibilidade de restauração por 30 dias;
+atender a um pedido de exclusão definitiva por LGPD.
+Se alguma regra estiver ambígua, assuma uma premissa e documente, ou pergunte.
+
+Entregáveis:
+
+repositório Git com histórico de commits;
+testes automatizados no que você considerar crítico;
+README com: como rodar (Docker é bem-vindo), principais decisões e trade-offs, o que você deixou de fora e por quê, como usou IA (o que aceitou, o que corrigiu, o que rejeitou) e quanto tempo levou.
+Prazo: 3 dias. Esforço esperado: 4 a 6 horas. Não buscamos o projeto com mais padrões, e sim boas decisões bem justificadas.
+
+Próxima etapa: sessão de 1h para discutir o projeto e fazer uma pequena alteração ao vivo, com IA liberada.
