@@ -8,6 +8,7 @@ import type {
   SoftDeleteResultDto,
   RestoreContactResultDto,
   LgpdPurgeResultDto,
+  LgpdAuditLogDto,
   CsvImportResultDto
 } from '../types/contact';
 

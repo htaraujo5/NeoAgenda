@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using NeoAgenda.Domain.Entities;
 using NeoAgenda.Domain.Repositories;
 using NeoAgenda.Infrastructure.Data;
