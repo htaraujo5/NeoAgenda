@@ -19,8 +19,13 @@ public interface IContactRepository
         int pageSize, 
         string? sortBy, 
         bool sortDesc, 
+        string? currentUser = null,
+        bool isAdmin = true,
         CancellationToken ct = default);
-    Task<IReadOnlyList<Contact>> GetRecycleBinAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Contact>> GetRecycleBinAsync(
+        string? currentUser = null,
+        bool isAdmin = true,
+        CancellationToken ct = default);
     Task<int> PurgeExpiredRecycleBinAsync(DateTime expirationThreshold, CancellationToken ct = default);
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

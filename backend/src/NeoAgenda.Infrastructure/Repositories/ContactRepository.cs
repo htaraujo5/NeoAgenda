@@ -65,9 +65,17 @@ public class ContactRepository : IContactRepository
         int pageSize, 
         string? sortBy, 
         bool sortDesc, 
+        string? currentUser = null,
+        bool isAdmin = true,
         CancellationToken ct = default)
     {
         var query = _context.Contacts.AsNoTracking().AsQueryable();
+
+        // Se o usuário não for administrador, filtra apenas os contatos da sua própria agenda
+        if (!isAdmin && !string.IsNullOrWhiteSpace(currentUser))
+        {
+            query = query.Where(c => c.CreatedBy == currentUser);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -98,11 +106,21 @@ public class ContactRepository : IContactRepository
         return (items, totalCount);
     }
 
-    public async Task<IReadOnlyList<Contact>> GetRecycleBinAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Contact>> GetRecycleBinAsync(
+        string? currentUser = null,
+        bool isAdmin = true,
+        CancellationToken ct = default)
     {
-        return await _context.Contacts
+        var query = _context.Contacts
             .IgnoreQueryFilters()
-            .Where(c => c.IsDeleted)
+            .Where(c => c.IsDeleted);
+
+        if (!isAdmin && !string.IsNullOrWhiteSpace(currentUser))
+        {
+            query = query.Where(c => c.CreatedBy == currentUser);
+        }
+
+        return await query
             .OrderByDescending(c => c.DeletedAt)
             .ToListAsync(ct);
     }

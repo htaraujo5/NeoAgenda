@@ -105,4 +105,38 @@ public class ContactServiceTests
         _contactRepoMock.Verify(r => r.DeletePermanently(contact), Times.Once);
         _contactRepoMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task SoftDeleteAsync_ShouldAllowAdmin_ToDeleteOtherUsersContact()
+    {
+        // Arrange
+        var contact = Contact.Create("Contato de Outro", "outro@teste.com", "(11) 98765-4321", "+5511987654321", "outro_usuario");
+        _contactRepoMock.Setup(r => r.GetByIdAsync(contact.Id, false, It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(contact);
+
+        // Act - Admin excluindo contato de 'outro_usuario'
+        var result = await _sut.SoftDeleteAsync(contact.Id, currentUser: "admin", isAdmin: true);
+
+        // Assert
+        result.Should().NotBeNull();
+        contact.IsDeleted.Should().BeTrue();
+        _contactRepoMock.Verify(r => r.Update(contact), Times.Once);
+    }
+
+    [Fact]
+    public async Task SoftDeleteAsync_ShouldThrowDomainException_WhenRegularUserTriesToDeleteOtherUsersContact()
+    {
+        // Arrange
+        var contact = Contact.Create("Contato Alheio", "alheio@teste.com", "(11) 98765-4321", "+5511987654321", "dono_original");
+        _contactRepoMock.Setup(r => r.GetByIdAsync(contact.Id, false, It.IsAny<CancellationToken>()))
+                        .ReturnsAsync(contact);
+
+        // Act
+        Func<Task> act = async () => await _sut.SoftDeleteAsync(contact.Id, currentUser: "usuario_comum", isAdmin: false);
+
+        // Assert
+        await act.Should().ThrowAsync<DomainException>()
+                 .WithMessage("*Acesso negado: você não tem permissão para excluir este contato*");
+        contact.IsDeleted.Should().BeFalse();
+    }
 }

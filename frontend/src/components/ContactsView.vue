@@ -12,10 +12,12 @@ import ContactFormDialog from './ContactFormDialog.vue';
 import LgpdConfirmDialog from './LgpdConfirmDialog.vue';
 import CsvImportDialog from './CsvImportDialog.vue';
 import { useContactStore } from '../stores/contactStore';
+import { useAuthStore } from '../stores/authStore';
 import { contactApi, extractErrorMessage } from '../api/client';
 import type { ContactDto, RecycleBinContactDto } from '../types/contact';
 
 const store = useContactStore();
+const authStore = useAuthStore();
 const toast = useToast();
 const confirm = useConfirm();
 
@@ -230,6 +232,12 @@ function exportLgpdAuditsJson() {
           </template>
         </Column>
 
+        <Column v-if="authStore.isAdmin" field="createdBy" header="Agenda / Criado por" style="min-width: 160px;">
+          <template #body="{ data }">
+            <Tag :value="'@' + (data.createdBy || 'system')" severity="info" />
+          </template>
+        </Column>
+
         <Column header="Ações" style="width: 110px; text-align: right;">
           <template #body="{ data }">
             <div style="display: flex; justify-content: flex-end; gap: 0.25rem;">
@@ -255,6 +263,11 @@ function exportLgpdAuditsJson() {
         <Column field="phoneNormalized" header="Telefone" style="min-width: 160px;">
           <template #body="{ data }">
             <span class="phone-badge">{{ data.phoneNormalized }}</span>
+          </template>
+        </Column>
+        <Column v-if="authStore.isAdmin" field="createdBy" header="Agenda / Criado por" style="min-width: 160px;">
+          <template #body="{ data }">
+            <Tag :value="'@' + (data.createdBy || 'system')" severity="info" />
           </template>
         </Column>
         <Column field="remainingDays" header="Prazo de Retenção" style="min-width: 150px;">

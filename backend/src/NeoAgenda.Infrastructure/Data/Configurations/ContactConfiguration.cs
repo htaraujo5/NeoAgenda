@@ -39,6 +39,11 @@ public class ContactConfiguration : IEntityTypeConfiguration<Contact>
 
         builder.Property(c => c.UpdatedAt);
 
+        builder.Property(c => c.CreatedBy)
+               .HasMaxLength(100)
+               .HasDefaultValue("system")
+               .IsRequired();
+
         builder.Property(c => c.IsDeleted)
                .HasDefaultValue(false)
                .IsRequired();
