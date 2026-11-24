@@ -65,16 +65,28 @@ public class PhoneNormalizer : IPhoneNormalizer
             return false;
         }
 
-        // Caso especial: iniciou com 0 antes do DDD nacional (ex: 011987654321 ou 05511987654321)
-        if (digitsOnly.StartsWith("0") && digitsOnly.Length >= 11)
+        // Tratamento de prefixo de saída internacional 00 (ex: 005511987654321)
+        if (digitsOnly.StartsWith("00") && digitsOnly.Length >= 13)
         {
-            digitsOnly = digitsOnly.TrimStart('0');
+            digitsOnly = digitsOnly.Substring(2);
         }
 
         // Se o número começa com 55 e tem tamanho de número BR com DDI (12 ou 13 dígitos)
         if (digitsOnly.StartsWith("55") && (digitsOnly.Length == 12 || digitsOnly.Length == 13))
         {
             digitsOnly = digitsOnly.Substring(2); // Remove DDI 55 temporariamente para validação de DDD
+        }
+
+        // Tratamento de zero inicial de longa distância nacional:
+        // Ex 1: Celular com 0 antes do DDD -> '0' + 2 dígitos DDD + 9 dígitos celular = 12 dígitos (ex: 011987654321)
+        if (digitsOnly.Length == 12 && digitsOnly.StartsWith("0"))
+        {
+            digitsOnly = digitsOnly.Substring(1);
+        }
+        // Ex 2: Fixo com 0 antes do DDD -> '0' + 2 dígitos DDD + 8 dígitos fixo (iniciando em 2..5) = 11 dígitos (ex: 01133334444)
+        else if (digitsOnly.Length == 11 && digitsOnly.StartsWith("0") && digitsOnly[3] >= '2' && digitsOnly[3] <= '5')
+        {
+            digitsOnly = digitsOnly.Substring(1);
         }
 
         // Verificação padrão Brasil (10 dígitos para fixo ou 11 dígitos para celular com DDD)
