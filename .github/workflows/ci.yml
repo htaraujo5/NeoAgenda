@@ -72,6 +72,11 @@ jobs:
             npm install
           fi
 
+      - name: Run Frontend Automated Tests
+        if: steps.check_frontend.outputs.exists == 'true'
+        working-directory: frontend
+        run: npm test
+
       - name: Type Check & Build Frontend
         if: steps.check_frontend.outputs.exists == 'true'
         working-directory: frontend
