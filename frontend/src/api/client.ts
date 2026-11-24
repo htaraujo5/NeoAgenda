@@ -221,6 +221,36 @@ export const contactApi = {
   }
 };
 
+export const accessApi = {
+  async getUsers(): Promise<import('../types/telemetry').UserDto[]> {
+    const response = await api.get<import('../types/telemetry').UserDto[]>('/access/users');
+    return response.data;
+  },
+
+  async createUser(dto: import('../types/telemetry').CreateUserRequestDto): Promise<import('../types/telemetry').UserDto> {
+    const response = await api.post<import('../types/telemetry').UserDto>('/access/users', dto);
+    return response.data;
+  },
+
+  async revokeAccess(userId: string): Promise<void> {
+    await api.post(`/access/users/${userId}/revoke`);
+  },
+
+  async getLogs(count = 100): Promise<import('../types/telemetry').AccessLogDto[]> {
+    const response = await api.get<import('../types/telemetry').AccessLogDto[]>('/access/logs', {
+      params: { count }
+    });
+    return response.data;
+  }
+};
+
+export const metricsApi = {
+  async getSummary(): Promise<import('../types/telemetry').PerformanceSummaryDto> {
+    const response = await api.get<import('../types/telemetry').PerformanceSummaryDto>('/metrics/summary');
+    return response.data;
+  }
+};
+
 export function extractErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const err = error as AxiosError<{ message?: string; detail?: string; title?: string }>;

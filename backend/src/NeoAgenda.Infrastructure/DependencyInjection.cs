@@ -30,7 +30,11 @@ public static class DependencyInjection
         services.AddScoped<IContactRepository, ContactRepository>();
         services.AddScoped<ILgpdAuditRepository, LgpdAuditRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IAccessLogRepository, AccessLogRepository>();
+        services.AddScoped<IMetricsRepository, MetricsRepository>();
         services.AddScoped<Application.Interfaces.IAuthService, Services.AuthService>();
+        services.AddScoped<Application.Interfaces.IAccessManagementService, Services.AccessManagementService>();
+        services.AddScoped<Application.Interfaces.IPerformanceMetricsService, Services.PerformanceMetricsService>();
         services.AddHostedService<BackgroundServices.RecycleBinPurgeBackgroundService>();
 
         return services;

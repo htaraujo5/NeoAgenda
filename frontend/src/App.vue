@@ -14,6 +14,8 @@ import ContactFormDialog from './components/ContactFormDialog.vue';
 import LgpdConfirmDialog from './components/LgpdConfirmDialog.vue';
 import CsvImportDialog from './components/CsvImportDialog.vue';
 import LoginView from './components/LoginView.vue';
+import AccessManagementPanel from './components/AccessManagementPanel.vue';
+import PerformanceMetricsPanel from './components/PerformanceMetricsPanel.vue';
 import { useContactStore } from './stores/contactStore';
 import { useAuthStore } from './stores/authStore';
 import { contactApi, authApi, extractErrorMessage } from './api/client';
@@ -25,7 +27,7 @@ const toast = useToast();
 const confirm = useConfirm();
 
 // State
-const activeTab = ref<'active' | 'recycle' | 'lgpd'>('active');
+const activeTab = ref<'active' | 'recycle' | 'lgpd' | 'access' | 'metrics'>('active');
 const isDarkMode = ref(false);
 
 const formDialogVisible = ref(false);
@@ -300,6 +302,20 @@ function exportLgpdAuditsJson() {
           :severity="activeTab === 'lgpd' ? 'danger' : 'secondary'"
           @click="activeTab = 'lgpd'; store.fetchLgpdAudits();"
         />
+        <Button
+          label="Gestão de Acessos & Auditoria"
+          icon="pi pi-id-card"
+          :text="activeTab !== 'access'"
+          :severity="activeTab === 'access' ? 'info' : 'secondary'"
+          @click="activeTab = 'access'"
+        />
+        <Button
+          label="Desempenho & Métricas"
+          icon="pi pi-chart-line"
+          :text="activeTab !== 'metrics'"
+          :severity="activeTab === 'metrics' ? 'help' : 'secondary'"
+          @click="activeTab = 'metrics'"
+        />
       </div>
 
       <!-- Search & Filters (Ativos) -->
@@ -496,6 +512,16 @@ function exportLgpdAuditsJson() {
             </template>
           </Column>
         </DataTable>
+      </div>
+
+      <!-- Tab: Gestão de Acessos & Logs -->
+      <div v-if="activeTab === 'access'">
+        <AccessManagementPanel />
+      </div>
+
+      <!-- Tab: Métricas & Desempenho -->
+      <div v-if="activeTab === 'metrics'">
+        <PerformanceMetricsPanel />
       </div>
     </main>
   </div>

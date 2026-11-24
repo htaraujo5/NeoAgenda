@@ -20,9 +20,19 @@ public class UserRepository : IUserRepository
         return await _context.Users.FirstOrDefaultAsync(u => u.Username == normalized, ct);
     }
 
+    public async Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _context.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+    }
+
     public async Task<User?> GetByRefreshTokenAsync(string refreshToken, CancellationToken ct = default)
     {
         return await _context.Users.FirstOrDefaultAsync(u => u.RefreshToken == refreshToken, ct);
+    }
+
+    public async Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.Users.OrderBy(u => u.Username).ToListAsync(ct);
     }
 
     public async Task AddAsync(User user, CancellationToken ct = default)
