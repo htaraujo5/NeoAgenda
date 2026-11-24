@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NeoAgenda.Application.DTOs;
 using NeoAgenda.Application.Interfaces;
@@ -5,6 +6,7 @@ using NeoAgenda.Application.Interfaces;
 namespace NeoAgenda.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 [Produces("application/json")]
 public class ContactsController : ControllerBase

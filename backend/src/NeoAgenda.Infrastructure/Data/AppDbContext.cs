@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
 {
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<LgpdComplianceAudit> LgpdAudits => Set<LgpdComplianceAudit>();
+    public DbSet<User> Users => Set<User>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -18,5 +19,6 @@ public class AppDbContext : DbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration(new ContactConfiguration(Database.ProviderName));
         modelBuilder.ApplyConfiguration(new LgpdAuditConfiguration());
+        modelBuilder.ApplyConfiguration(new UserConfiguration());
     }
 }

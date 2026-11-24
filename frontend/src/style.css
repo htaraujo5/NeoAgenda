@@ -1,8 +1,11 @@
 :root {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color-scheme: light dark;
-  --bg-primary: #f8fafc;
+  color-scheme: light;
+  
+  /* Modo Claro - Paleta Completa e Nítida */
+  --bg-primary: #f1f5f9;
   --bg-card: #ffffff;
+  --bg-subtle: #f8fafc;
   --text-main: #0f172a;
   --text-muted: #64748b;
   --border-color: #e2e8f0;
@@ -10,14 +13,17 @@
   --primary-hover: #4338ca;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #090d16;
-    --bg-card: #111827;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --border-color: #1e293b;
-  }
+/* Modo Escuro - Aplicado via classe .dark no HTML */
+html.dark {
+  color-scheme: dark;
+  --bg-primary: #090d16;
+  --bg-card: #111827;
+  --bg-subtle: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #1e293b;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
 }
 
 * {
@@ -31,6 +37,7 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .layout-container {
@@ -52,6 +59,7 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: 1rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .brand-badge {
@@ -77,6 +85,7 @@ body {
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--text-main);
 }
 
 .brand-subtitle {
@@ -90,6 +99,7 @@ body {
   border-radius: 1rem;
   padding: 1.5rem;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .toolbar-actions {
@@ -110,4 +120,42 @@ body {
 .countdown-badge {
   font-weight: 600;
   font-size: 0.8rem;
+}
+
+/* Ajustes visuais globais para tabelas, inputs e modais */
+.p-datatable {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+.p-datatable .p-datatable-tbody > tr {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+.p-datatable .p-datatable-tbody > tr:hover {
+  background: var(--bg-subtle) !important;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  border-color: var(--border-color) !important;
+}
+
+.p-dialog {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.p-dialog .p-dialog-header,
+.p-dialog .p-dialog-content,
+.p-dialog .p-dialog-footer {
+  background: var(--bg-card) !important;
+  color: var(--text-main) !important;
 }

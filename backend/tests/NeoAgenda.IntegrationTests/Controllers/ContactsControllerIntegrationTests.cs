@@ -14,6 +14,17 @@ public class ContactsControllerIntegrationTests : IClassFixture<CustomWebApplica
     public ContactsControllerIntegrationTests(CustomWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
+        
+        // Autentica o cliente com o usuário seed padrão 'admin'
+        var loginResponse = _client.PostAsJsonAsync("/api/auth/login", new LoginRequestDto("admin", "Admin@123")).GetAwaiter().GetResult();
+        if (loginResponse.IsSuccessStatusCode)
+        {
+            var auth = loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>().GetAwaiter().GetResult();
+            if (auth != null)
+            {
+                _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", auth.AccessToken);
+            }
+        }
     }
 
     [Fact]

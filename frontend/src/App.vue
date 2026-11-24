@@ -13,11 +13,14 @@ import ConfirmDialog from 'primevue/confirmdialog';
 import ContactFormDialog from './components/ContactFormDialog.vue';
 import LgpdConfirmDialog from './components/LgpdConfirmDialog.vue';
 import CsvImportDialog from './components/CsvImportDialog.vue';
+import LoginView from './components/LoginView.vue';
 import { useContactStore } from './stores/contactStore';
-import { contactApi, extractErrorMessage } from './api/client';
+import { useAuthStore } from './stores/authStore';
+import { contactApi, authApi, extractErrorMessage } from './api/client';
 import type { ContactDto, RecycleBinContactDto } from './types/contact';
 
 const store = useContactStore();
+const authStore = useAuthStore();
 const toast = useToast();
 const confirm = useConfirm();
 
@@ -40,10 +43,38 @@ onMounted(async () => {
   if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     isDarkMode.value = true;
     document.documentElement.classList.add('dark');
+  } else {
+    isDarkMode.value = false;
+    document.documentElement.classList.remove('dark');
   }
 
-  await loadData();
+  window.addEventListener('auth:expired', handleAuthExpired);
+
+  if (authStore.isAuthenticated) {
+    await loadData();
+  }
 });
+
+function handleAuthExpired() {
+  authStore.logout();
+  toast.add({
+    severity: 'warn',
+    summary: 'Sessão Expirada',
+    detail: 'Sua sessão expirou. Por favor, faça login novamente.',
+    life: 5000
+  });
+}
+
+async function handleLogout() {
+  await authApi.logout();
+  authStore.logout();
+  toast.add({
+    severity: 'info',
+    summary: 'Logout Realizado',
+    detail: 'Você encerrou a sessão com sucesso.',
+    life: 3000
+  });
+}
 
 function toggleDarkMode() {
   isDarkMode.value = !isDarkMode.value;
@@ -169,8 +200,18 @@ async function handleCsvUpload(file: File) {
   }
 }
 
-function downloadExportCsv() {
-  window.open(contactApi.getExportCsvUrl(), '_blank');
+async function downloadExportCsv() {
+  try {
+    const blob = await contactApi.exportCsv();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contatos_exportados_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: extractErrorMessage(err), life: 4000 });
+  }
 }
 
 function exportLgpdAuditsJson() {
@@ -189,7 +230,11 @@ function exportLgpdAuditsJson() {
   <Toast />
   <ConfirmDialog />
 
-  <div class="layout-container">
+  <!-- Tela de Login Se Não Autenticado -->
+  <LoginView v-if="!authStore.isAuthenticated" @login-success="loadData" />
+
+  <!-- Aplicação Autenticada -->
+  <div v-else class="layout-container">
     <!-- Header -->
     <header class="app-header">
       <div class="brand-badge">
@@ -214,6 +259,19 @@ function exportLgpdAuditsJson() {
           @click="toggleDarkMode"
           :title="isDarkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
         />
+
+        <!-- Usuário & Logout -->
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 0.5rem; border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
+          <Tag :value="authStore.user?.username || 'admin'" severity="info" icon="pi pi-user" />
+          <Button
+            icon="pi pi-power-off"
+            severity="danger"
+            text
+            rounded
+            @click="handleLogout"
+            title="Sair do sistema"
+          />
+        </div>
       </div>
     </header>
 

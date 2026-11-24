@@ -24,20 +24,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
-            // Cria conexão SQLite in-memory aberta persistente para o teste
-            _connection = new SqliteConnection("Data Source=:memory:;Mode=Memory;Cache=Shared");
+            // Cria conexão SQLite in-memory aberta persistente para o teste com nome único
+            _connection = new SqliteConnection($"Data Source={Guid.NewGuid()};Mode=Memory;Cache=Shared");
             _connection.Open();
 
             services.AddDbContext<AppDbContext>(options =>
             {
                 options.UseSqlite(_connection);
             });
-
-            // Constrói o provider e cria o esquema
-            var sp = services.BuildServiceProvider();
-            using var scope = sp.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.Database.EnsureCreated();
         });
     }
 

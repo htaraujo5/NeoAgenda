@@ -29,6 +29,8 @@ public static class DependencyInjection
 
         services.AddScoped<IContactRepository, ContactRepository>();
         services.AddScoped<ILgpdAuditRepository, LgpdAuditRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<Application.Interfaces.IAuthService, Services.AuthService>();
         services.AddHostedService<BackgroundServices.RecycleBinPurgeBackgroundService>();
 
         return services;
