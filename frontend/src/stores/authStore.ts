@@ -14,6 +14,8 @@ export const useAuthStore = defineStore('auth', () => {
   );
 
   const isAuthenticated = computed(() => !!token.value);
+  const isAdmin = computed(() => (user.value?.role || '').toLowerCase() === 'admin' || (user.value?.role || '').toLowerCase() === 'administrador');
+  const isUser = computed(() => !isAdmin.value);
 
   function setAuth(authData: AuthResponseDto) {
     token.value = authData.accessToken;
@@ -53,6 +55,8 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     user,
     isAuthenticated,
+    isAdmin,
+    isUser,
     setAuth,
     updateToken,
     logout

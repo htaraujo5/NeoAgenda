@@ -128,6 +128,7 @@ using (var scope = app.Services.CreateScope())
 
 // Middleware de tratamento de exceções global (RFC 7807 ProblemDetails)
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+app.UseMiddleware<PerformanceTelemetryMiddleware>();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
