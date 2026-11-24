@@ -11,12 +11,11 @@ COPY src/NeoAgenda.Api/NeoAgenda.Api.csproj src/NeoAgenda.Api/
 COPY tests/NeoAgenda.UnitTests/NeoAgenda.UnitTests.csproj tests/NeoAgenda.UnitTests/
 COPY tests/NeoAgenda.IntegrationTests/NeoAgenda.IntegrationTests.csproj tests/NeoAgenda.IntegrationTests/
 
-RUN dotnet restore NeoAgenda.sln
-
 # Copia todo o código fonte
 COPY . .
 
-# Compilação e execução da suíte de testes automatizados
+# Restauração e compilação completa com verificação de testes
+RUN dotnet restore NeoAgenda.sln
 RUN dotnet build NeoAgenda.sln --configuration Release --no-restore
 RUN dotnet test NeoAgenda.sln --configuration Release --no-build --verbosity normal
 

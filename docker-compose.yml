@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile
     container_name: neoagenda-front
     ports:
-      - "8080:80"
+      - "${FRONT_PORT:-8081}:80"
     depends_on:
       neoagenda-api:
         condition: service_healthy
