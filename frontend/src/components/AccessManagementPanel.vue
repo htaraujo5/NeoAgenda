@@ -7,6 +7,7 @@ import Tag from 'primevue/tag';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Password from 'primevue/password';
+import Select from 'primevue/select';
 import { useToast } from 'primevue/usetoast';
 import { accessApi, extractErrorMessage } from '../api/client';
 import type { UserDto, AccessLogDto } from '../types/telemetry';
@@ -24,7 +25,12 @@ const isCreatingUser = ref(false);
 const newUsername = ref('');
 const newPassword = ref('');
 const newName = ref('');
-const newRole = ref('Admin');
+const newRole = ref('Usuario');
+
+const availableRoles = [
+  { label: 'Administrador (Acesso total)', value: 'Admin' },
+  { label: 'Usuário (Acesso à agenda e contatos)', value: 'Usuario' }
+];
 
 onMounted(async () => {
   await loadAll();
@@ -270,8 +276,15 @@ function getActionSeverity(action: string, success: boolean): 'success' | 'dange
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 0.35rem;">
-          <label style="font-size: 0.85rem; font-weight: 600;">Função / Perfil</label>
-          <InputText v-model="newRole" placeholder="Ex: Admin, Operador" />
+          <label style="font-size: 0.85rem; font-weight: 600;">Função / Nível de Permissão</label>
+          <Select
+            v-model="newRole"
+            :options="availableRoles"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Selecione o perfil"
+            style="width: 100%;"
+          />
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
