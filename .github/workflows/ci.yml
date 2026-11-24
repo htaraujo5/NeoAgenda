@@ -59,13 +59,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Frontend Dependencies
         if: steps.check_frontend.outputs.exists == 'true'
         working-directory: frontend
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run Frontend Automated Tests
+        if: steps.check_frontend.outputs.exists == 'true'
+        working-directory: frontend
+        run: npm test
 
       - name: Type Check & Build Frontend
         if: steps.check_frontend.outputs.exists == 'true'
