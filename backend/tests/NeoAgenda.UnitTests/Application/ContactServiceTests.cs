@@ -15,11 +15,12 @@ public class ContactServiceTests
     private readonly Mock<IContactRepository> _contactRepoMock = new();
     private readonly Mock<ILgpdAuditRepository> _lgpdRepoMock = new();
     private readonly Mock<IPhoneNormalizer> _normalizerMock = new();
+    private readonly Mock<ICsvContactParser> _csvParserMock = new();
     private readonly ContactService _sut;
 
     public ContactServiceTests()
     {
-        _sut = new ContactService(_contactRepoMock.Object, _lgpdRepoMock.Object, _normalizerMock.Object);
+        _sut = new ContactService(_contactRepoMock.Object, _lgpdRepoMock.Object, _normalizerMock.Object, _csvParserMock.Object);
     }
 
     [Fact]
