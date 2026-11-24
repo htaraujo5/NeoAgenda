@@ -39,3 +39,7 @@ dist-ssr/
 Thumbs.db
 *.swp
 *~
+*.db
+*.db-shm
+*.db-wal
+*.tsbuildinfo
