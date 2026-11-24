@@ -3,7 +3,7 @@ using NeoAgenda.Application.DTOs;
 namespace NeoAgenda.Application.Interfaces;
 
 /// <summary>
-/// Casos de uso de gerenciamento de contatos, ciclo de vida e privacidade.
+/// Casos de uso de gerenciamento de contatos, ciclo de vida, privacidade e importação/exportação.
 /// </summary>
 public interface IContactService
 {
@@ -28,4 +28,8 @@ public interface IContactService
     Task<LgpdPurgeResultDto> PurgeLgpdAsync(Guid id, string? requestedBy = null, CancellationToken ct = default);
 
     Task<IReadOnlyList<RecycleBinContactDto>> GetRecycleBinAsync(CancellationToken ct = default);
+
+    Task<CsvImportResultDto> ImportCsvAsync(Stream csvStream, CancellationToken ct = default);
+
+    Task<byte[]> ExportCsvAsync(CancellationToken ct = default);
 }
