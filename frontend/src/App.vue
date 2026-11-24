@@ -1,46 +1,35 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
-import { useConfirm } from 'primevue/useconfirm';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import Tag from 'primevue/tag';
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
 
-import ContactFormDialog from './components/ContactFormDialog.vue';
-import LgpdConfirmDialog from './components/LgpdConfirmDialog.vue';
-import CsvImportDialog from './components/CsvImportDialog.vue';
 import LoginView from './components/LoginView.vue';
+import ContactsView from './components/ContactsView.vue';
 import AccessManagementPanel from './components/AccessManagementPanel.vue';
 import PerformanceMetricsPanel from './components/PerformanceMetricsPanel.vue';
+import UserProfileView from './components/UserProfileView.vue';
+
 import { useContactStore } from './stores/contactStore';
 import { useAuthStore } from './stores/authStore';
-import { contactApi, authApi, extractErrorMessage } from './api/client';
-import type { ContactDto, RecycleBinContactDto } from './types/contact';
+import { authApi, extractErrorMessage } from './api/client';
 
 const store = useContactStore();
 const authStore = useAuthStore();
 const toast = useToast();
-const confirm = useConfirm();
 
-// State
-const activeTab = ref<'active' | 'recycle' | 'lgpd' | 'access' | 'metrics'>('active');
+// Menus de navegação:
+// 'contacts' (Agenda & Contatos)
+// 'profile' (Dados do Usuário & Permissões)
+// 'access' (Gestão de Usuários - Exclusivo Admin)
+// 'metrics' (Desempenho & APM - Exclusivo Admin)
+const currentNav = ref<'contacts' | 'profile' | 'access' | 'metrics'>('contacts');
 const isDarkMode = ref(false);
 
-const formDialogVisible = ref(false);
-const editingContact = ref<ContactDto | null>(null);
-
-const lgpdDialogVisible = ref(false);
-const targetLgpdContact = ref<ContactDto | RecycleBinContactDto | null>(null);
-
-const csvDialogVisible = ref(false);
-const csvDialogRef = ref<InstanceType<typeof CsvImportDialog> | null>(null);
-
 onMounted(async () => {
-  // Inicialização do Dark Mode
+  // Inicialização do Tema
   const savedTheme = localStorage.getItem('neoagenda-theme');
   if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     isDarkMode.value = true;
@@ -53,9 +42,36 @@ onMounted(async () => {
   window.addEventListener('auth:expired', handleAuthExpired);
 
   if (authStore.isAuthenticated) {
-    await loadData();
+    await loadInitialData();
   }
 });
+
+function toggleDarkMode() {
+  isDarkMode.value = !isDarkMode.value;
+  if (isDarkMode.value) {
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('neoagenda-theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('neoagenda-theme', 'light');
+  }
+}
+
+async function loadInitialData() {
+  try {
+    await Promise.all([
+      store.fetchContacts(),
+      store.fetchRecycleBin()
+    ]);
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Erro de Conexão',
+      detail: extractErrorMessage(err),
+      life: 5000
+    });
+  }
+}
 
 function handleAuthExpired() {
   authStore.logout();
@@ -70,161 +86,13 @@ function handleAuthExpired() {
 async function handleLogout() {
   await authApi.logout();
   authStore.logout();
+  currentNav.value = 'contacts';
   toast.add({
     severity: 'info',
     summary: 'Logout Realizado',
     detail: 'Você encerrou a sessão com sucesso.',
     life: 3000
   });
-}
-
-function toggleDarkMode() {
-  isDarkMode.value = !isDarkMode.value;
-  if (isDarkMode.value) {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('neoagenda-theme', 'dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('neoagenda-theme', 'light');
-  }
-}
-
-async function loadData() {
-  try {
-    await Promise.all([
-      store.fetchContacts(),
-      store.fetchRecycleBin(),
-      store.fetchLgpdAudits()
-    ]);
-  } catch (err) {
-    toast.add({
-      severity: 'error',
-      summary: 'Erro de Conexão',
-      detail: extractErrorMessage(err),
-      life: 5000
-    });
-  }
-}
-
-async function handleSearch() {
-  store.currentPage = 1;
-  await store.fetchContacts();
-}
-
-function openCreateDialog() {
-  editingContact.value = null;
-  formDialogVisible.value = true;
-}
-
-function openEditDialog(contact: ContactDto) {
-  editingContact.value = contact;
-  formDialogVisible.value = true;
-}
-
-async function handleSaveContact(payload: { name: string; email: string; phone: string }) {
-  try {
-    if (editingContact.value) {
-      await store.updateContact(editingContact.value.id, payload);
-      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato atualizado com sucesso.', life: 3000 });
-    } else {
-      await store.createContact(payload);
-      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Contato cadastrado com sucesso.', life: 3000 });
-    }
-    formDialogVisible.value = false;
-  } catch (err) {
-    toast.add({ severity: 'error', summary: 'Não foi possível salvar', detail: extractErrorMessage(err), life: 5000 });
-  }
-}
-
-function confirmSoftDelete(contact: ContactDto) {
-  confirm.require({
-    message: `Deseja mover o contato "${contact.name}" para a lixeira? Ele poderá ser restaurado por até 30 dias.`,
-    header: 'Mover para a Lixeira',
-    icon: 'pi pi-exclamation-triangle',
-    rejectLabel: 'Cancelar',
-    acceptLabel: 'Mover para Lixeira',
-    acceptClass: 'p-button-warning',
-    accept: async () => {
-      try {
-        await store.softDeleteContact(contact.id);
-        toast.add({ severity: 'info', summary: 'Na Lixeira', detail: 'Contato movido para a lixeira.', life: 3000 });
-      } catch (err) {
-        toast.add({ severity: 'error', summary: 'Erro', detail: extractErrorMessage(err), life: 4000 });
-      }
-    }
-  });
-}
-
-async function handleRestore(contact: RecycleBinContactDto) {
-  try {
-    await store.restoreContact(contact.id);
-    toast.add({ severity: 'success', summary: 'Restaurado', detail: `Contato "${contact.name}" reativado na agenda.`, life: 3000 });
-  } catch (err) {
-    toast.add({ severity: 'error', summary: 'Falha na Restauração', detail: extractErrorMessage(err), life: 5000 });
-  }
-}
-
-function openLgpdDialog(contact: ContactDto | RecycleBinContactDto) {
-  targetLgpdContact.value = contact;
-  lgpdDialogVisible.value = true;
-}
-
-async function handleConfirmLgpdPurge(id: string) {
-  try {
-    const result = await store.purgeLgpd(id);
-    lgpdDialogVisible.value = false;
-    toast.add({
-      severity: 'warn',
-      summary: 'LGPD: Dados Excluídos',
-      detail: `${result.message} Protocolo: ${result.protocol}`,
-      life: 6000
-    });
-  } catch (err) {
-    toast.add({ severity: 'error', summary: 'Erro na exclusão LGPD', detail: extractErrorMessage(err), life: 5000 });
-  }
-}
-
-async function handleCsvUpload(file: File) {
-  if (csvDialogRef.value) csvDialogRef.value.isUploading = true;
-  try {
-    const result = await store.importCsv(file);
-    if (csvDialogRef.value) csvDialogRef.value.setResult(result);
-    toast.add({
-      severity: result.failedCount === 0 ? 'success' : 'warn',
-      summary: 'Importação Concluída',
-      detail: `${result.importedCount} importados, ${result.failedCount} inconsistências ignoradas.`,
-      life: 5000
-    });
-  } catch (err) {
-    toast.add({ severity: 'error', summary: 'Falha na Importação', detail: extractErrorMessage(err), life: 5000 });
-  } finally {
-    if (csvDialogRef.value) csvDialogRef.value.isUploading = false;
-  }
-}
-
-async function downloadExportCsv() {
-  try {
-    const blob = await contactApi.exportCsv();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `contatos_exportados_${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: extractErrorMessage(err), life: 4000 });
-  }
-}
-
-function exportLgpdAuditsJson() {
-  if (store.lgpdAudits.length === 0) return;
-  const blob = new Blob([JSON.stringify(store.lgpdAudits, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `comprovantes_auditoria_lgpd_${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 </script>
 
@@ -233,315 +101,358 @@ function exportLgpdAuditsJson() {
   <ConfirmDialog />
 
   <!-- Tela de Login Se Não Autenticado -->
-  <LoginView v-if="!authStore.isAuthenticated" @login-success="loadData" />
+  <LoginView v-if="!authStore.isAuthenticated" @login-success="loadInitialData" />
 
-  <!-- Aplicação Autenticada -->
-  <div v-else class="layout-container">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="brand-badge">
+  <!-- Estrutura com Menu e Telas Modulares -->
+  <div v-else class="app-layout">
+    <!-- Barra Lateral de Navegação (Sidebar) -->
+    <aside class="app-sidebar">
+      <!-- Marca -->
+      <div class="sidebar-brand">
         <div class="brand-icon">
           <i class="pi pi-address-book"></i>
         </div>
         <div>
-          <h1 class="brand-title">NeoAgenda</h1>
-          <p class="brand-subtitle">Gestão Inteligente & Privacidade LGPD</p>
+          <span class="brand-name">NeoAgenda</span>
+          <span class="brand-tag">v2.0 Pro</span>
         </div>
       </div>
 
-      <div class="toolbar-actions">
-        <Button label="Novo Contato" icon="pi pi-plus" @click="openCreateDialog" />
-        <Button label="Importar CSV" icon="pi pi-upload" severity="secondary" outlined @click="csvDialogVisible = true" />
-        <Button label="Exportar CSV" icon="pi pi-download" severity="secondary" text @click="downloadExportCsv" />
-        <Button
-          :icon="isDarkMode ? 'pi pi-sun' : 'pi pi-moon'"
-          severity="secondary"
-          text
-          rounded
-          @click="toggleDarkMode"
-          :title="isDarkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
-        />
+      <!-- Menu Principal -->
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">PRINCIPAL</div>
 
-        <!-- Usuário & Logout -->
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 0.5rem; border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
-          <Tag :value="authStore.user?.username || 'admin'" severity="info" icon="pi pi-user" />
+        <button
+          class="nav-item"
+          :class="{ active: currentNav === 'contacts' }"
+          @click="currentNav = 'contacts'"
+        >
+          <i class="pi pi-users"></i>
+          <span>Agenda & Contatos</span>
+          <Tag v-if="store.totalCount > 0" :value="store.totalCount" severity="secondary" class="nav-counter" />
+        </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: currentNav === 'profile' }"
+          @click="currentNav = 'profile'"
+        >
+          <i class="pi pi-user"></i>
+          <span>Meu Perfil & Acesso</span>
+        </button>
+
+        <!-- Seção Administrativa (Exclusivo Administrador) -->
+        <template v-if="authStore.isAdmin">
+          <div class="nav-section-title" style="margin-top: 1.25rem;">ADMINISTRAÇÃO</div>
+
+          <button
+            class="nav-item"
+            :class="{ active: currentNav === 'access' }"
+            @click="currentNav = 'access'"
+          >
+            <i class="pi pi-id-card"></i>
+            <span>Gestão de Usuários</span>
+          </button>
+
+          <button
+            class="nav-item"
+            :class="{ active: currentNav === 'metrics' }"
+            @click="currentNav = 'metrics'"
+          >
+            <i class="pi pi-chart-line"></i>
+            <span>Desempenho & APM</span>
+          </button>
+        </template>
+      </nav>
+
+      <!-- Rodapé da Sidebar: Usuário & Tema -->
+      <div class="sidebar-footer">
+        <div class="user-pill" @click="currentNav = 'profile'" title="Ver dados do usuário">
+          <div class="user-avatar-mini">
+            {{ (authStore.user?.username || 'U').substring(0, 1).toUpperCase() }}
+          </div>
+          <div class="user-details-mini">
+            <span class="user-name-mini">{{ authStore.user?.name || authStore.user?.username }}</span>
+            <span class="user-role-mini">{{ authStore.isAdmin ? 'Administrador' : 'Usuário' }}</span>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.25rem;">
+          <Button
+            :icon="isDarkMode ? 'pi pi-sun' : 'pi pi-moon'"
+            severity="secondary"
+            text
+            rounded
+            @click="toggleDarkMode"
+            :title="isDarkMode ? 'Tema Claro' : 'Tema Escuro'"
+          />
           <Button
             icon="pi pi-power-off"
             severity="danger"
             text
             rounded
             @click="handleLogout"
-            title="Sair do sistema"
+            title="Encerrar Sessão"
           />
         </div>
       </div>
-    </header>
+    </aside>
 
-    <!-- Main Card -->
-    <main class="card">
-      <!-- Tabs Switcher -->
-      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex-wrap: wrap;">
-        <Button
-          :label="'Contatos Ativos (' + store.totalCount + ')'"
-          icon="pi pi-users"
-          :text="activeTab !== 'active'"
-          :severity="activeTab === 'active' ? 'primary' : 'secondary'"
-          @click="activeTab = 'active'"
-        />
-        <Button
-          :label="'Lixeira (' + store.recycleBinContacts.length + ')'"
-          icon="pi pi-trash"
-          :text="activeTab !== 'recycle'"
-          :severity="activeTab === 'recycle' ? 'warning' : 'secondary'"
-          @click="activeTab = 'recycle'"
-        />
-        <Button
-          :label="'Auditoria LGPD (' + store.lgpdAudits.length + ')'"
-          icon="pi pi-shield"
-          :text="activeTab !== 'lgpd'"
-          :severity="activeTab === 'lgpd' ? 'danger' : 'secondary'"
-          @click="activeTab = 'lgpd'; store.fetchLgpdAudits();"
-        />
-        <Button
-          label="Gestão de Acessos & Auditoria"
-          icon="pi pi-id-card"
-          :text="activeTab !== 'access'"
-          :severity="activeTab === 'access' ? 'info' : 'secondary'"
-          @click="activeTab = 'access'"
-        />
-        <Button
-          label="Desempenho & Métricas"
-          icon="pi pi-chart-line"
-          :text="activeTab !== 'metrics'"
-          :severity="activeTab === 'metrics' ? 'help' : 'secondary'"
-          @click="activeTab = 'metrics'"
-        />
-      </div>
-
-      <!-- Search & Filters (Ativos) -->
-      <div v-if="activeTab === 'active'" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
-        <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 450px;">
-          <InputText
-            v-model="store.searchQuery"
-            placeholder="Buscar por nome, e-mail ou telefone..."
-            @keyup.enter="handleSearch"
-            style="width: 100%;"
-          />
-          <Button icon="pi pi-search" @click="handleSearch" />
-        </div>
-        <small style="color: var(--text-muted);">Total de registros: <strong>{{ store.totalCount }}</strong></small>
-      </div>
-
-      <!-- Tabela de Contatos Ativos -->
-      <div v-if="activeTab === 'active'">
-        <DataTable
-          :value="store.contacts"
-          :loading="store.isLoading"
-          lazy
-          :totalRecords="store.totalCount"
-          :rows="store.pageSize"
-          :first="(store.currentPage - 1) * store.pageSize"
-          @page="(e) => { store.currentPage = (e.page ?? 0) + 1; store.pageSize = e.rows; store.fetchContacts(); }"
-          paginator
-          responsiveLayout="stack"
-          stripedRows
-        >
-          <template #empty>
-            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-              <i class="pi pi-inbox" style="font-size: 2.5rem; margin-bottom: 0.5rem; display: block;"></i>
-              Nenhum contato encontrado.
-            </div>
-          </template>
-
-          <Column field="name" header="Nome" sortable style="min-width: 200px;">
-            <template #body="{ data }">
-              <span style="font-weight: 600;">{{ data.name }}</span>
-            </template>
-          </Column>
-
-          <Column field="email" header="E-mail" style="min-width: 220px;">
-            <template #body="{ data }">
-              <a :href="'mailto:' + data.email" style="color: #6366f1; text-decoration: none;">{{ data.email }}</a>
-            </template>
-          </Column>
-
-          <Column field="phoneOriginal" header="Telefone" style="min-width: 180px;">
-            <template #body="{ data }">
-              <span class="phone-badge">{{ data.phoneOriginal }}</span>
-            </template>
-          </Column>
-
-          <Column header="Ações" style="width: 140px; text-align: right;">
-            <template #body="{ data }">
-              <div style="display: flex; gap: 0.25rem; justify-content: flex-end;">
-                <Button icon="pi pi-pencil" text rounded size="small" @click="openEditDialog(data)" title="Editar" />
-                <Button icon="pi pi-trash" text rounded severity="warning" size="small" @click="confirmSoftDelete(data)" title="Mover para lixeira" />
-                <Button icon="pi pi-shield" text rounded severity="danger" size="small" @click="openLgpdDialog(data)" title="Exclusão Definitiva LGPD" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
-      </div>
-
-      <!-- Tabela da Lixeira (Janela de 30 Dias) -->
-      <div v-else-if="activeTab === 'recycle'">
-        <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid #f59e0b; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.25rem; display: flex; gap: 0.75rem; align-items: center;">
-          <i class="pi pi-clock" style="font-size: 1.5rem; color: #f59e0b;"></i>
-          <span style="font-size: 0.85rem; color: var(--text-main);">
-            Contatos na lixeira podem ser <strong>restaurados durante até 30 dias</strong> após a exclusão. Após esse prazo, são expurgados permanentemente.
+    <!-- Conteúdo Principal Dinâmico -->
+    <main class="app-main-content">
+      <!-- Topbar com Título da Tela e Breadcrumb -->
+      <header class="content-header">
+        <div>
+          <h2 class="content-title">
+            <template v-if="currentNav === 'contacts'">Gestão de Contatos & Agenda</template>
+            <template v-else-if="currentNav === 'profile'">Dados do Usuário & Permissões</template>
+            <template v-else-if="currentNav === 'access'">Gestão de Usuários & Auditoria</template>
+            <template v-else-if="currentNav === 'metrics'">Métricas & Acompanhamento de Desempenho</template>
+          </h2>
+          <span class="content-desc">
+            <template v-if="currentNav === 'contacts'">Controle completo com unicidade E.164, retenção de 30 dias e LGPD.</template>
+            <template v-else-if="currentNav === 'profile'">Detalhes da sua conta, credenciais ativas e nível de acesso atribuído.</template>
+            <template v-else-if="currentNav === 'access'">Criação de novos operadores, logs de logins e revogação de acessos.</template>
+            <template v-else-if="currentNav === 'metrics'">Telemetria isolada com latência média, percentil P95 e status codes da API.</template>
           </span>
         </div>
 
-        <DataTable :value="store.recycleBinContacts" :loading="store.isRecycleBinLoading" responsiveLayout="stack" stripedRows>
-          <template #empty>
-            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-              <i class="pi pi-check-circle" style="font-size: 2.5rem; margin-bottom: 0.5rem; display: block; color: #22c55e;"></i>
-              A lixeira está vazia. Nenhum contato excluído temporariamente.
-            </div>
-          </template>
+        <Tag
+          :value="authStore.isAdmin ? 'Acesso Total (Admin)' : 'Acesso Limitado (Usuário)'"
+          :severity="authStore.isAdmin ? 'danger' : 'info'"
+        />
+      </header>
 
-          <Column field="name" header="Nome" style="min-width: 180px;">
-            <template #body="{ data }">
-              <span style="font-weight: 600;">{{ data.name }}</span>
-            </template>
-          </Column>
-
-          <Column field="email" header="E-mail" style="min-width: 200px;" />
-          <Column field="phoneOriginal" header="Telefone" style="min-width: 160px;">
-            <template #body="{ data }">
-              <span class="phone-badge">{{ data.phoneOriginal }}</span>
-            </template>
-          </Column>
-
-          <Column header="Retenção (30 dias)" style="min-width: 180px;">
-            <template #body="{ data }">
-              <Tag
-                :severity="data.daysRemaining > 5 ? 'warning' : 'danger'"
-                :value="data.isExpired ? 'Expirado' : 'Restam ' + data.daysRemaining + ' dias'"
-                icon="pi pi-clock"
-              />
-            </template>
-          </Column>
-
-          <Column header="Ações" style="width: 180px; text-align: right;">
-            <template #body="{ data }">
-              <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                <Button
-                  label="Restaurar"
-                  icon="pi pi-replay"
-                  size="small"
-                  severity="success"
-                  outlined
-                  :disabled="data.isExpired"
-                  @click="handleRestore(data)"
-                />
-                <Button
-                  icon="pi pi-shield"
-                  size="small"
-                  severity="danger"
-                  text
-                  @click="openLgpdDialog(data)"
-                  title="Expurgo Imediato LGPD"
-                />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
-      </div>
-
-      <!-- Tabela de Auditoria LGPD (Compliance Art. 18, VI) -->
-      <div v-else-if="activeTab === 'lgpd'">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <i class="pi pi-shield" style="font-size: 1.75rem; color: #ef4444;"></i>
-            <div>
-              <h4 style="font-size: 1.1rem; font-weight: 700;">Trilha de Auditoria e Conformidade LGPD</h4>
-              <p style="font-size: 0.8rem; color: var(--text-muted);">
-                Comprovações anônimas de atendimento ao Direito ao Esquecimento (Art. 18, VI da Lei 13.709/2018).
-              </p>
-            </div>
-          </div>
-          <Button
-            label="Exportar Comprovantes (JSON)"
-            icon="pi pi-download"
-            size="small"
-            severity="secondary"
-            outlined
-            :disabled="store.lgpdAudits.length === 0"
-            @click="exportLgpdAuditsJson"
-          />
-        </div>
-
-        <DataTable :value="store.lgpdAudits" :loading="store.isLgpdAuditsLoading" responsiveLayout="stack" stripedRows>
-          <template #empty>
-            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
-              <i class="pi pi-verified" style="font-size: 2.5rem; margin-bottom: 0.5rem; display: block; color: #6366f1;"></i>
-              Nenhum pedido de exclusão LGPD registrado até o momento.
-            </div>
-          </template>
-
-          <Column field="id" header="Protocolo / ID" style="min-width: 140px;">
-            <template #body="{ data }">
-              <Tag :value="data.id.substring(0, 8).toUpperCase()" severity="info" />
-            </template>
-          </Column>
-
-          <Column field="contactHash" header="Hash Criptográfico Anônimo (SHA-256)" style="min-width: 260px;">
-            <template #body="{ data }">
-              <span style="font-family: monospace; font-size: 0.75rem; word-break: break-all; color: var(--text-muted);">
-                {{ data.contactHash }}
-              </span>
-            </template>
-          </Column>
-
-          <Column field="executedAt" header="Data / Hora UTC" style="min-width: 180px;">
-            <template #body="{ data }">
-              <span>{{ new Date(data.executedAt).toLocaleString('pt-BR') }}</span>
-            </template>
-          </Column>
-
-          <Column field="legalBasis" header="Base Legal" style="min-width: 220px;">
-            <template #body="{ data }">
-              <Tag :value="data.legalBasis" severity="secondary" />
-            </template>
-          </Column>
-
-          <Column field="requestedBy" header="Origem da Solicitação" style="min-width: 150px;">
-            <template #body="{ data }">
-              <span style="font-size: 0.85rem; font-weight: 500;">{{ data.requestedBy }}</span>
-            </template>
-          </Column>
-        </DataTable>
-      </div>
-
-      <!-- Tab: Gestão de Acessos & Logs -->
-      <div v-if="activeTab === 'access'">
-        <AccessManagementPanel />
-      </div>
-
-      <!-- Tab: Métricas & Desempenho -->
-      <div v-if="activeTab === 'metrics'">
-        <PerformanceMetricsPanel />
+      <!-- Painel Principal Renderizado Conforme Navegação -->
+      <div class="view-card">
+        <ContactsView v-if="currentNav === 'contacts'" />
+        <UserProfileView v-else-if="currentNav === 'profile'" />
+        <AccessManagementPanel v-else-if="currentNav === 'access' && authStore.isAdmin" />
+        <PerformanceMetricsPanel v-else-if="currentNav === 'metrics' && authStore.isAdmin" />
       </div>
     </main>
   </div>
-
-  <!-- Dialogs -->
-  <ContactFormDialog
-    v-model:visible="formDialogVisible"
-    :contactToEdit="editingContact"
-    @save="handleSaveContact"
-  />
-
-  <LgpdConfirmDialog
-    v-model:visible="lgpdDialogVisible"
-    :contact="targetLgpdContact"
-    @confirm="handleConfirmLgpdPurge"
-  />
-
-  <CsvImportDialog
-    ref="csvDialogRef"
-    v-model:visible="csvDialogVisible"
-    @upload="handleCsvUpload"
-  />
 </template>
+
+<style scoped>
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+/* Sidebar */
+.app-sidebar {
+  width: 260px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.25rem 1rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.brand-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  border-radius: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+.brand-name {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.1;
+  display: block;
+}
+
+.brand-tag {
+  font-size: 0.7rem;
+  color: #6366f1;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 1.25rem;
+  flex: 1;
+}
+
+.nav-section-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  padding: 0.5rem 0.75rem 0.25rem 0.75rem;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-item i {
+  font-size: 1rem;
+}
+
+.nav-item:hover {
+  background: var(--bg-primary);
+  color: var(--text-main);
+}
+
+.nav-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.nav-counter {
+  margin-left: auto;
+  font-size: 0.7rem;
+}
+
+.sidebar-footer {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  transition: background 0.15s ease;
+}
+
+.user-pill:hover {
+  background: var(--bg-primary);
+}
+
+.user-avatar-mini {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #6366f1;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-details-mini {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-name-mini {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role-mini {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* Conteúdo Principal */
+.app-main-content {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  max-width: 1400px;
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.content-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.content-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.view-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+  .app-sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .app-main-content {
+    padding: 1rem;
+  }
+}
+</style>
