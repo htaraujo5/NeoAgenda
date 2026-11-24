@@ -8,6 +8,7 @@ import type { ContactDto, RecycleBinContactDto } from '../types/contact';
 const props = defineProps<{
   visible: boolean;
   contact?: ContactDto | RecycleBinContactDto | null;
+  appendTo?: string;
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +37,7 @@ function handlePurge() {
     header="Exclusão Definitiva por LGPD"
     modal
     :style="{ width: '520px' }"
+    :appendTo="appendTo || 'body'"
   >
     <div style="display: flex; flex-direction: column; gap: 1.25rem; padding-top: 0.5rem;">
       <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 0.75rem; padding: 1rem; display: flex; gap: 1rem; align-items: flex-start;">

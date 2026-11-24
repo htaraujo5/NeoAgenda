@@ -19,7 +19,8 @@ describe('LgpdConfirmDialog.vue', () => {
     const wrapper = mount(LgpdConfirmDialog, {
       props: {
         visible: true,
-        contact: dummyContact
+        contact: dummyContact,
+        appendTo: 'self'
       },
       global: {
         plugins: [PrimeVue]
