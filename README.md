@@ -7,7 +7,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
 ![LGPD Compliant](https://img.shields.io/badge/LGPD-Art._18_Compliant-059669)
 
-Aplicação corporativa de gerenciamento de contatos resiliente, desenvolvida com API RESTful em **.NET 8** e interface reativa em **Vue 3** com componentes **PrimeVue 4**. O sistema foi concebido com foco estrito em integridade de dados, normalização telefônica canônica, importação tolerante a falhas, janela de retenção de 30 dias e conformidade legal com o **Direito ao Esquecimento da LGPD**.
+Aplicação corporativa de gerenciamento de contatos resiliente e multiusuário, desenvolvida com API RESTful em **.NET 8** e interface reativa em **Vue 3** com componentes **PrimeVue 4**. O sistema foi concebido com foco estrito em integridade de dados, normalização telefônica canônica (E.164), importação tolerante a falhas, janela de retenção de 30 dias (soft delete com expurgo automático), conformidade legal com a **LGPD (Art. 18, VI)**, autenticação JWT com Refresh Tokens, controle de acessos baseado em perfis (RBAC), auditoria de segurança e telemetria de desempenho (APM).
 
 ---
 
@@ -25,155 +25,122 @@ Na raiz do repositório, execute:
 docker compose up --build
 ```
 
-O Docker realizará a compilação multi-stage, executará a suíte de testes automatizados dentro do container de build e iniciará os serviços:
+O Docker realizará a compilação multi-stage, executará as suítes de testes automatizados dentro dos containers e iniciará os serviços:
 
 | Serviço | URL | Descrição |
 | :--- | :--- | :--- |
-| **Frontend Web (Vue + PrimeVue)** | [http://localhost:8080](http://localhost:8080) | Interface gráfica com tabela reativa, lixeira e importador |
+| **Frontend Web (Vue 3 + PrimeVue)** | [http://localhost:8080](http://localhost:8080) (ou 8081) | Interface web reativa com Sidebar, tabela de contatos, lixeira e métricas |
 | **Backend API & Swagger** | [http://localhost:5000](http://localhost:5000) | Documentação interativa OpenAPI / Swagger UI |
-| **Healthcheck da API** | [http://localhost:5000/health](http://localhost:5000/health) | Verificação de disponibilidade do backend |
+| **Healthcheck da API** | [http://localhost:5000/health](http://localhost:5000/health) | Verificação de disponibilidade e saúde do backend |
 
-*(A base de dados SQLite é inicializada automaticamente com dados de exemplo e persiste em um volume Docker nomeado).*
-
----
-
-### Execução Local (Sem Docker)
-
-Caso prefira rodar diretamente no seu ambiente de desenvolvimento:
-
-#### 1. Backend (.NET 8 SDK)
-```bash
-cd backend
-dotnet restore
-dotnet test
-dotnet run --project src/NeoAgenda.Api
-# A API estará disponível em http://localhost:5000
-```
-
-#### 2. Frontend (Node.js 20+)
-```bash
-cd frontend
-npm install
-npm test
-npm run dev
-# O frontend estará disponível em http://localhost:5173 (com proxy automático para a API)
-```
+*(A base de dados SQLite é inicializada automaticamente com seeds de usuários padrão e persiste em um volume Docker nomeado).*
 
 ---
 
-## 🏛️ Principais Decisões de Arquitetura e Regras de Negócio
+## 🔑 Credenciais Padrão Pré-configuradas (Seeds)
+
+| Usuário | Senha | Papel (Role) | Permissões |
+| :--- | :--- | :--- | :--- |
+| **`admin`** | `Admin@123` | **`Admin`** | **Acesso Global**: gerencia e visualiza todas as agendas, exclusão/expurgo total, gestão de usuários, auditoria completa e APM. |
+| **`usuario`** | `User@123` | **`Usuario`** | **Agenda Pessoal**: gerencia apenas seus próprios contatos, histórico pessoal de movimentações e importação própria de CSV. |
+
+---
+
+## 🏛️ Principais Regras de Negócio e Recursos de Engenharia
 
 ### 1. Normalização Canônica e Unicidade de Telefone (RN01)
-- **Problema:** Usuários e planilhas inserem telefones em dezenas de formatos distintos: `(11) 98765-4321`, `+55 11 98765-4321`, `5511987654321`, `11987654321`, `011 98765 4321`, `(11) 9.8765-4321` ou fixos como `(11) 3333-4444`.
-- **Solução Implementada:**
-  - Criação do serviço de domínio `PhoneNormalizer`.
-  - Converte qualquer formato válido para a representação **canônica internacional E.164** (`+55{DDD}{Número}`).
-  - Valida o conjunto oficial de DDDs de todas as unidades federativas do Brasil.
-  - Distingue celulares (11 dígitos, nono dígito `9` obrigatório) de fixos (10 dígitos, faixa 2 a 5).
-  - Trata prefixos de saída internacional (`00`) e prefixos de longa distância (`0`).
-- **Garantia no Banco de Dados:** Além da validação na camada de aplicação, o banco possui um **Filtered Unique Index**:
+- Converte qualquer formato válido para a representação **canônica internacional E.164** (`+55{DDD}{Número}`).
+- Validação estrita do conjunto de DDDs oficiais de todas as UFs brasileiras segundo o plano da Anatel.
+- Distingue celulares (11 dígitos, nono dígito `9` obrigatório) de fixos (10 dígitos, dígitos iniciais 2 a 5).
+- **Garantia Concorrente no Banco de Dados:** Além da validação de aplicação, o banco possui um **Filtered Unique Index**:
   ```sql
   CREATE UNIQUE INDEX "IX_Contacts_PhoneNormalized" ON "Contacts" ("PhoneNormalized") WHERE "IsDeleted" = false;
   ```
-  Isso garante concorrência segura sem risco de race conditions.
 
 ### 2. Importação Resiliente de CSV (RN02)
-- **Problema:** Lotes de importação costumam ser rejeitados inteiramente caso uma única linha possua um erro de digitação.
-- **Solução Implementada:**
-  - `CsvContactParser`: processador em stream tolerante a falhas.
-  - **Detecção automática de delimitadores:** Suporta vírgula (`,`), ponto-e-vírgula (`;`) e tabulação (`\t`).
-  - **Mapeamento flexível de cabeçalhos:** Reconhece sinônimos em português e inglês (`nome`/`name`, `email`/`e-mail`, `telefone`/`phone`/`celular`).
-  - **Resiliência linha a linha:** Linhas válidas são persistidas; linhas inconsistentes geram um relatório com o número exato da linha, campo afetado e motivo do erro.
-  - **Detecção intra-arquivo:** Se a linha 2 e a linha 10 do mesmo arquivo contiverem o mesmo telefone formatado diferente, a primeira é importada e a segunda é rejeitada com aviso explicativo.
+- Processador em stream com detecção automática de delimitadores (`,`, `;`, `\t`) e encodings (UTF-8, Latin1).
+- Mapeamento flexível de cabeçalhos (`nome`/`name`, `email`/`e-mail`, `telefone`/`phone`/`celular`).
+- **Resiliência linha a linha:** Linhas válidas são persistidas; linhas inconsistentes geram relatório com número da linha, campo afetado, motivo e botão de download do arquivo de erros.
+- Detecção e bloqueio de duplicidades no próprio lote CSV.
 
 ### 3. Exclusão com Janela de Restauração de 30 Dias (RN03)
-- O contato excluído recebe `IsDeleted = true`, `DeletedAt = UtcNow` e `RetentionExpiresAt = DeletedAt + 30 dias`.
-- As consultas padrão utilizam o **Global Query Filter** do EF Core (`HasQueryFilter(c => !c.IsDeleted)`).
-- Na aba **Lixeira**, os contatos são exibidos com uma **Tag de contagem regressiva** (`Restam X dias`).
-- **Restauração Segura:** Caso o usuário tente restaurar um contato cujo número foi cadastrado por outra pessoa durante os 30 dias, a API informa o conflito amigavelmente impedindo duplicidades.
+- Soft Delete com `RetentionExpiresAt = DeletedAt + 30 dias`.
+- **Worker em Segundo Plano (`RecycleBinPurgeBackgroundService`):** Serviço hospedado do .NET que roda periodicamente e expurga registros fisicamente após os 30 dias.
+- Exibição de contagem regressiva em dias restantes na lixeira.
+- Restauração segura com verificação de colisão caso o número tenha sido cadastrado por outro contato ativo.
 
 ### 4. Exclusão Definitiva por LGPD (RN04)
-- Atende ao **Direito ao Esquecimento** previsto no **Art. 18, VI da Lei 13.709/2018 (LGPD)**.
-- **Expurgo Completo dos Dados Pessoais (PII):** Remoção física imediata (`Hard Delete`) da tabela de contatos.
-- **Trilha de Conformidade Anônima:** Gera um registro na tabela `LgpdComplianceAudits` com um hash irreversível SHA-256 do titular, timestamp UTC e protocolo para comprovação perante órgãos reguladores (sem manter nome, email ou telefone legíveis).
+- Atende ao **Direito ao Esquecimento** do **Art. 18, VI da Lei 13.709/2018 (LGPD)**.
+- **Hard Delete dos Dados Pessoais (PII):** Destruição física irreversível do registro na base de contatos.
+- **Trilha de Auditoria Criptográfica:** Inserção na tabela `LgpdComplianceAudits` com hash SHA-256 anônimo (`PhoneNormalized + ContactId`) para comprovação legal perante a ANPD, sem armazenar dados pessoais legíveis.
+
+### 5. Controle de Acessos, Auditoria & Telemetria APM (RN05 / RN06)
+- **Autenticação JWT & Refresh Token Rotation:** Sessão segura com expiração de 60 minutos e renovação em segundo plano por 7 dias.
+- **Segregação de Agenda por Usuário:** Usuários comuns operam somente sua própria lista; Administradores visualizam e podem excluir contatos de qualquer agenda.
+- **Trilha de Auditoria de Acesso:** Registro detalhado de logins (sucessos e falhas) com IP, User-Agent e data/hora.
+- **Telemetria de Desempenho (APM):** Middleware que intercepta requisições HTTP e calcula métricas de latência (média, p50, p95, p99) e taxa de erro.
 
 ---
 
-## 🌟 Recursos Extras Implementados (Diferenciais de Engenharia)
+## 🧪 Estratégia e Cobertura de Testes Automatizados
 
-Além dos requisitos obrigatórios, foram incorporados recursos avançados que agregam valor real ao produto:
+O projeto conta com testes automatizados executados tanto localmente quanto no pipeline de CI:
+- **Backend (.NET 8):**
+  - **55 Testes Unitários:** Validação exaustiva do `PhoneNormalizer`, regras de ciclo de vida, permissões de Admin/Usuário, tolerância do parser CSV e cálculo de retenção.
+  - **8 Testes de Integração:** Fluxos HTTP completos com `WebApplicationFactory` e SQLite in-memory (autenticação JWT, ciclo de vida do contato, conflito 409, lixeira, restore, expurgo LGPD e importação de arquivo real).
+- **Frontend (Vue 3 / Vitest):**
+  - **8 Testes Unitários:** Clientes HTTP, stores Pinia (`authStore`, `contactStore`) e componentes de confirmação de exclusão LGPD.
 
-1. **📁 Arquivos de Amostra Prontos para Teste (`samples/`):**
-   - [contatos_validos.csv](samples/contatos_validos.csv): 7 contatos com múltiplos DDDs, formatos e DDI.
-   - [contatos_com_erros.csv](samples/contatos_com_erros.csv): 7 linhas desenhadas para demonstrar a resiliência visual da RN02 (e-mails inválidos, telefones curtos, DDD 00 inexistente e duplicidade intra-arquivo).
-2. **⏰ Worker em Segundo Plano para Expurgo da Lixeira (`BackgroundService` .NET):**
-   - `RecycleBinPurgeBackgroundService`: serviço periódico que varre a base expurgando fisicamente contatos com mais de 30 dias na lixeira, emitindo logs estruturados no `ILogger`.
-3. **🛡️ Painel e Endpoint de Auditoria LGPD (`/api/contacts/lgpd-audits`):**
-   - Aba dedicada na interface web com tabela de protocolos, hashes criptográficos SHA-256 anônimos, data/hora UTC e exportação em formato JSON para auditoria da ANPD.
-4. **🌓 Modo Escuro / Claro Dinâmico (Dark Mode Switcher):**
-   - Alternador de tema no cabeçalho com persistência em `localStorage` e suporte nativo pelo design system do PrimeVue Aura.
-5. **📊 Relatório Visual de Testes e Cobertura no CI:**
-   - O GitHub Actions publica automaticamente o resumo da execução de testes do backend (.NET) e frontend (Vitest) na aba do workflow e nos Pull Requests.
+Para executar os testes manualmente:
+```bash
+# Testes do Backend
+dotnet test backend/NeoAgenda.sln
 
----
-
-## ⚖️ Trade-offs Assumidos e O Que Ficou de Fora
-
-1. **Autenticação e Multi-Tenancy:**
-   - *Decisão:* Não incluímos controle de login JWT ou tenants.
-   - *Motivo:* O teste especificou esforço esperado de 4 a 6 horas focado nas regras de negócio da agenda. Adicionar OAuth2/JWT desviaria o foco do desafio sem agregar valor à conversa técnica principal.
-2. **Mensageria Assíncrona (RabbitMQ/Kafka) para CSV:**
-   - *Decisão:* O processamento do CSV é feito de forma síncrona em stream.
-   - *Motivo:* Para arquivos de até dezenas de milhares de linhas, o processamento direto em memória/stream leva menos de 2 segundos. Introduzir brokers externos traria complexidade de infraestrutura desnecessária para o escopo.
-3. **Serviço de Background Cron para Purga Automática da Lixeira:**
-   - *Decisão:* A regra de expiração de 30 dias é validada em tempo real na camada de domínio (`RetentionExpiresAt < UtcNow`).
-   - *Motivo:* Um contato com mais de 30 dias já fica bloqueado para restauração automaticamente. Um `BackgroundService` de limpeza em batch pode ser facilmente acoplado se necessário.
+# Testes do Frontend
+cd frontend && npm test
+```
 
 ---
 
-## 🤖 Como a Inteligência Artificial Foi Utilizada
+## ⚖️ Trade-offs Assumidos e Decisões Técnicas
 
-O uso de IA neste projeto seguiu rigorosos critérios de engenharia de software:
+1. **SQLite Persistente para o Desafio:**
+   - *Decisão:* Utilizamos SQLite no Docker Compose por simplificar a inicialização imediata sem dependência de containers pesados de banco, com total suporte a Filtered Unique Indexes. A Clean Architecture permite plugar PostgreSQL ou SQL Server alterando apenas a Connection String no `appsettings.json`.
+2. **Processamento em Stream vs Mensageria:**
+   - *Decisão:* O parser de CSV opera diretamente em stream de memória com tempo de resposta na casa de milissegundos para lotes usuais, evitando custos e complexidades desnecessárias de mensageria externa (RabbitMQ/Kafka).
+3. **Formulários Guiados:**
+   - *Decisão:* Na gestão de acessos, a atribuição de papéis é restrita a uma lista suspensa (`Admin` ou `Usuario`), prevenindo inconsistências no banco.
+
+---
+
+## 🤖 Uso Transparente de Inteligência Artificial
+
+A utilização de IA neste projeto seguiu diretrizes de arquitetura e validação contínua:
 
 ### 1. O que foi aceito da IA
-- **Scaffolding e Estrutura:** Criação da estrutura de pastas da Clean Architecture (.NET) e componentes Vue 3 + PrimeVue.
-- **Mapeamento de Regras Oficiais:** Tabela com todos os DDDs válidos do Brasil segundo o plano da Anatel.
-- **Suíte de Testes Automatizados:** Geração de múltiplos cenários de testes unitários para o normalizador de telefone e parser de CSV.
-- **OpenAPI e Documentação:** Geração de descrições dos contratos RESTful seguindo a RFC 7807 (ProblemDetails).
+- Criação inicial da estrutura em Clean Architecture (.NET) e configuração dos componentes PrimeVue.
+- Mapeamento inicial da tabela oficial de códigos DDD da Anatel.
+- Esboço de cenários de teste unitários para casos limites de telefonia e CSV.
+- Geração de documentação dos contratos OpenAPI (Swagger) segundo a RFC 7807.
 
-### 2. O que foi corrigido
-- **Algoritmo de Zeros na Normalização de Telefone:** A IA inicialmente sugeriu `digitsOnly = digitsOnly.TrimStart('0')`. Ao testar o DDD `00` (inválido), essa abordagem apagava ambos os zeros, reduzindo o número para 9 dígitos e gerando erro de tamanho ao invés de código de área inválido. A lógica foi reescrita manualmente para distinguir chamadas com zero antes do DDD de DDDs iniciados em zero.
-- **Configuração no EF Core:** Foi corrigida a chamada de extensão de configuração que exigia o pacote `Microsoft.Extensions.Configuration.Binder`.
-- **Testes Unitários no Frontend com PrimeVue:** Os componentes `<Dialog>` do PrimeVue usam `<Teleport to="body">` por padrão, o que deixava o DOM do teste vazio no Vitest. Ajustamos o componente para aceitar `appendTo="self"` durante os testes unitários.
+### 2. O que foi corrigido e refinado
+- **Normalização de Zeros Telefônicos:** A IA sugeriu inicialmente usar `TrimStart('0')`, o que causava a perda de zeros em números internacionais e mascarava erros de DDDs inválidos como `00`. A lógica foi reescrita manualmente para validar códigos de área estritamente antes do descarte de zeros de operadora.
+- **Evento de Clique Duplo no PrimeVue:** No componente de confirmação LGPD, a combinação de `@click` no container pai com o checkbox interno causava duplo chaveamento. O evento foi desacoplado e atrelado diretamente ao `id` do `<label>` HTML.
+- **Isolamento de Conexão no SQLite In-Memory:** Nos testes de integração, múltiplas instâncias colidiam no banco `:memory:`. Ajustamos a connection string para usar `Data Source={Guid.NewGuid()};Mode=Memory;Cache=Shared`.
 
 ### 3. O que foi rejeitado
-- **Bibliotecas Externas Opacas:** Sugestões de pacotes pesados como `libphonenumber-csharp` foram rejeitadas para manter o controle total, leveza e aderência específica às regras de telefonia brasileiras.
-- **Hard Delete Desgovernado para LGPD:** Propostas iniciais de apagar o registro sem gerar comprovante foram rejeitadas. Implementamos a tabela de auditoria anônima com hash SHA-256 para compliance legal real com a LGPD.
-- **Overengineering de Microserviços:** Propostas de segregar em múltiplos serviços e bancos distribuídos foram descartadas em prol de uma solução modular, limpa e coesa.
+- **Bibliotecas Externas Excessivas:** Rejeitada a adoção de bibliotecas opacas pesadas (ex: `libphonenumber-csharp`), optando por um domínio limpo e especializado na telefonia brasileira e padrão canônico E.164.
 
 ---
 
-## ⏱️ Esforço e Tempo Total Investido
+## ⏱️ Registro de Tempo Investido
 
-| Etapa | Atividades | Tempo Estimado |
-| :--- | :--- | :---: |
-| **Planejamento & Specs** | Leitura de requisitos, modelagem de dados, arquitetura em `especs/` e setup Git Flow | ~45 min |
-| **Backend Core & Domínio** | Entidades, ciclo de vida de soft delete (30 dias), normalizador canônico e testes xUnit | ~1h 10 min |
-| **Importador CSV Resiliente** | Parser com detecção de delimitadores, tolerância a falhas e testes unitários | ~50 min |
-| **Pipeline de CI (GitHub Actions)** | Configuração de workflows automatizados para backend e frontend e validações | ~30 min |
-| **Infraestrutura EF Core & API** | Repositórios, Filtered Unique Index, controllers RESTful e testes de integração | ~1h 00 min |
-| **Frontend Vue 3 + PrimeVue** | Interface com DataTable, modais com máscara, contagem regressiva, LGPD e Vitest | ~1h 15 min |
-| **Docker, Compose & Documentação** | Dockerfiles multi-stage, proxy Nginx, Compose e README executivo | ~40 min |
-| **Total Investido** | **Dentro da faixa esperada pelo desafio (4 a 6 horas)** | **~5h 10 min** |
-
----
-
-## 🧪 Estrutura de Testes Automatizados
-
-O projeto conta com mais de **60 testes automatizados** distribuídos entre:
-- **Testes Unitários de Domínio:** `PhoneNormalizerTests`, `ContactEntityTests`.
-- **Testes Unitários de Aplicação:** `ContactServiceTests`, `ContactServiceCsvTests`, `CsvContactParserTests`.
-- **Testes de Integração de API:** `ContactsControllerIntegrationTests` (com `WebApplicationFactory` e SQLite in-memory).
-- **Testes Unitários de Frontend:** `client.spec.ts`, `contactStore.spec.ts`, `LgpdConfirmDialog.spec.ts` (Vitest).
-
-Todos os testes são executados automaticamente a cada Pull Request pelo GitHub Actions.
+- **Planejamento, Especificação Técnica & Arquitetura (`especs/`):** 1h 00m
+- **Backend Core, Normalização Telefônica & Testes Unitários:** 1h 30m
+- **Motor Resiliente de Importação CSV & Testes:** 1h 15m
+- **Infraestrutura EF Core, RESTful API & Testes de Integração:** 1h 15m
+- **Frontend Vue 3 + PrimeVue & Experiência do Usuário:** 1h 45m
+- **Autenticação JWT, RBAC, Auditoria de Segurança & APM:** 1h 30m
+- **Acesso Global do Administrador & Segregação de Agenda:** 0h 45m
+- **Containerização Docker, CI GitHub Actions & Ajustes Finais:** 0h 45m
+- **Tempo Total:** ~9h 45m

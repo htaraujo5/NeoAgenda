@@ -2,72 +2,75 @@
 
 ## 1. Visão Arquitetural
 
-O **NeoAgenda** adota uma arquitetura limpa, desacoplada e baseada em responsabilidades bem delimitadas, otimizada para legibilidade, testabilidade e manutenibilidade.
+O **NeoAgenda** adota os princípios da **Clean Architecture**, com separação clara de responsabilidades, independência de frameworks no domínio e desacoplamento via injeção de dependências.
 
 ```
 NeoAgenda/
 ├── backend/
 │   ├── src/
-│   │   ├── NeoAgenda.Domain/          # Entidades, Value Objects, Interfaces, Regras Puras
-│   │   ├── NeoAgenda.Application/     # Casos de Uso, DTOs, Serviços, Validadores FluentValidation
-│   │   ├── NeoAgenda.Infrastructure/  # EF Core, Repositórios, Normalizadores, CsvHelper, Migrations
-│   │   └── NeoAgenda.Api/             # Controllers/Endpoints, Middlewares, DI, OpenAPI/Swagger
+│   │   ├── NeoAgenda.Domain/          # Entidades (Contact, User, AccessLog, RequestMetric), Regras Puras, Interfaces
+│   │   ├── NeoAgenda.Application/     # Serviços de Aplicação (ContactService, AccessService, MetricsService), DTOs
+│   │   ├── NeoAgenda.Infrastructure/  # EF Core, AppDbContext, Repositórios, AuthService, Middlewares, BackgroundServices
+│   │   └── NeoAgenda.Api/             # Controllers RESTful, DI, Swagger OpenAPI, Configurações
 │   └── tests/
-│       ├── NeoAgenda.UnitTests/       # Testes unitários de regras, normalização e validações
-│       └── NeoAgenda.IntegrationTests/# Testes de integração de API com WebApplicationFactory
+│       ├── NeoAgenda.UnitTests/       # Suíte xUnit para regras de domínio, normalizador, CSV e segurança
+│       └── NeoAgenda.IntegrationTests/# Testes de ponta a ponta com WebApplicationFactory e SQLite in-memory
 ├── frontend/
 │   ├── src/
-│   │   ├── api/                       # Clientes HTTP (Axios) tipados
-│   │   ├── components/                # Componentes reutilizáveis PrimeVue
-│   │   ├── views/                     # Páginas (Contatos, Lixeira, Importação)
-│   │   ├── stores/                    # Gerenciamento de estado (Pinia)
-│   │   ├── types/                     # Interfaces TypeScript
-│   │   └── utils/                     # Formatadores e máscaras de telefone
-├── especs/                            # Especificações e Contexto de IA
-├── docker/                            # Arquivos de orquestração Docker
-├── docker-compose.yml                 # Orquestração do ecossistema
-└── README.md                          # Guia de execução e decisões
+│   │   ├── api/                       # Clientes HTTP (Axios) tipados e interceptores de autenticação JWT
+│   │   ├── components/                # Componentes modulares (ContactsView, UserProfileView, AccessManagementPanel, etc.)
+│   │   ├── stores/                    # Gestão reativa de estado Pinia (authStore, contactStore)
+│   │   ├── types/                     # Interfaces TypeScript (contact, auth, telemetry)
+│   │   └── style.css                  # Variáveis semânticas e suporte a tema claro e escuro
+├── especs/                            # Especificações funcionais e arquiteturais
+├── docker-compose.yml                 # Orquestração do ecossistema completo
+└── README.md                          # Guia executivo, decisões e manual de uso
 ```
 
 ---
 
-## 2. Padrões do Backend (.NET 8/9 C#)
+## 2. Padrões do Backend (.NET 8 C#)
 
-### 2.1 Camadas
-- **Domain:**
-  - `Contact`: Entidade raiz com métodos ricos (`MarkAsDeleted()`, `Restore()`, `Update()`).
-  - `ValueObjects`: `PhoneNumber` com encapsulamento de normalização e validação intrínseca.
-  - `Specifications / Interfaces`: `IContactRepository`, `IPhoneNormalizer`, `ICsvContactParser`.
-- **Application:**
-  - `ContactService`: Orquestra casos de uso com validação prévia.
-  - `FluentValidation`: `CreateContactDtoValidator`, `UpdateContactDtoValidator`, `CsvRowValidator`.
-  - `DTOs`: `ContactResponseDto`, `CreateContactDto`, `CsvImportResultDto`.
-- **Infrastructure:**
-  - `AppDbContext`: Mapeamento EF Core com filtros globais de consulta (Global Query Filters) configuráveis para Soft Delete.
-  - `PhoneNormalizer`: Implementação com suporte a regras de DDDs brasileiros e formato E.164.
-  - `CsvContactParser`: Leitura com `CsvHelper` tolerante a variações de cabeçalhos e codificações.
-- **API:**
-  - `GlobalExceptionHandler`: Middleware para converter exceções em respostas RFC 7807 (`ProblemDetails`).
-  - `Controllers`: Controllers RESTful organizados e documentados via Swagger/OpenAPI.
+### 2.1 Pipeline de Middlewares HTTP
+A ordem dos middlewares na API segue o fluxo recomendado de segurança e observabilidade:
+1. `PerformanceTelemetryMiddleware`: Mede a latência de ponta a ponta e registra métricas de requisição (`RequestMetrics`).
+2. `GlobalExceptionHandler`: Captura exceções não tratadas e formata respostas segundo o padrão RFC 7807 (`ProblemDetails`).
+3. `AuthenticationMiddleware`: Valida e decodifica tokens JWT Bearer nos headers de autorização.
+4. `AuthorizationMiddleware`: Aplica políticas de acesso baseadas em papéis (`[Authorize(Roles = "Admin")]`).
+
+### 2.2 Camada de Domínio (`NeoAgenda.Domain`)
+- **Entidades Ricas:**
+  - `Contact`: métodos de encapsulamento como `Create()`, `Update()`, `MarkAsDeleted()`, `Restore()`, `CanBeRestored()` e `GetDaysRemainingInRecycleBin()`.
+  - `User`: métodos para manipulação de credenciais (`SetPasswordHash()`, `SetRefreshToken()`, `RevokeRefreshToken()`).
+  - `AccessLog`: entidade imutável para auditoria de autenticação e tentativas de acesso.
+  - `RequestMetric`: registro temporal para acompanhamento de desempenho (APM).
+  - `LgpdComplianceAudit`: log anônimo de atendimento ao Art. 18 da LGPD.
+
+### 2.3 Camada de Infraestrutura (`NeoAgenda.Infrastructure`)
+- **Persistência com EF Core:**
+  - `AppDbContext`: mapeamento das 5 tabelas com convenções e fluent API.
+  - `ContactConfiguration`: índice único filtrado para `PhoneNormalized` onde `IsDeleted = false`.
+- **Background Worker:**
+  - `RecycleBinPurgeBackgroundService`: serviço periódico que executa a cada 1 hora para purgar contatos cuja data de retenção de 30 dias tenha expirado.
+- **Segurança Criptográfica:**
+  - `PasswordHasher`: geração de hash SHA-256 e comparação segura contra ataques de temporização (`CryptographicOperations.FixedTimeEquals`).
 
 ---
 
 ## 3. Padrões do Frontend (Vue 3 + PrimeVue)
 
-### 3.1 Tecnologias e Bibliotecas
-- **Vue 3:** Single File Components com `<script setup lang="ts">`.
-- **PrimeVue 4:** Componentes de alta fidelidade visual (DataTable, Dialog, Toast, ConfirmDialog, Tag, Button, InputText, FileUpload, ProgressBar).
-- **Pinia:** Armazenamento reativo do estado global de contatos, notificações e filtros de busca.
-- **Axios:** Cliente HTTP com interceptors para tratamento de mensagens de erro amigáveis vindas da API.
-
----
-
-## 4. Decisões Arquiteturais e Trade-offs
-
-1. **Uso de Clean Architecture enxuta:**
-   - *Decisão:* Criamos projetos separados por responsabilidade (Domain, Application, Infrastructure, Api) para garantir testes unitários sem dependências externas.
-   - *Trade-off:* Um pouco mais de arquivos no início, porém isolamento total das regras de negócio críticas (normalização de telefone e CSV).
-2. **Normalização de Telefone no Backend:**
-   - *Decisão:* Embora o frontend forneça máscara visual, a normalização e validação definitiva ocorrem no backend, garantindo que integrações via API ou CSV não contornem a regra.
-3. **Soft Delete com Filtro Global do EF Core:**
-   - *Decisão:* Consultas padrão utilizam `.Where(c => !c.IsDeleted)` automaticamente via `HasQueryFilter`. Para a tela de Lixeira, utiliza-se `.IgnoreQueryFilters()`.
+### 3.1 Arquitetura de Componentes
+- **Layout Modular com Navegação Lateral (Sidebar):**
+  - Agenda de Contatos (`ContactsView.vue`)
+  - Meus Dados & Histórico Pessoal (`UserProfileView.vue`)
+  - Gestão de Usuários & Acessos (`AccessManagementPanel.vue` - exclusivo Admin)
+  - Desempenho & Métricas APM (`PerformanceMetricsPanel.vue` - exclusivo Admin)
+- **Modais e Diálogos Especializados:**
+  - `ContactFormDialog.vue`: Formulário de criação/edição com dropdown estrito de roles.
+  - `LgpdConfirmDialog.vue`: Diálogo de conformidade com confirmação obrigatória de ciência.
+  - `CsvImportDialog.vue`: Painel de diagnóstico de importação com exibição tabular de inconsistências e download de relatório.
+- **Gestão de Estado (Pinia):**
+  - `authStore`: Gerencia token JWT, refresh token, credenciais salvas em storage e decodificação do perfil de acesso.
+  - `contactStore`: Gerencia contatos ativos, lixeira, auditorias LGPD, paginação e filtros.
+- **Design Tokens e Temas:**
+  - Suporte suave e dinâmico a Modo Claro / Modo Escuro via variáveis CSS (`--bg-app`, `--card-bg`, `--text-main`, `--border-color`).

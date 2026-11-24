@@ -11,63 +11,51 @@ Usuários digitam telefones de diversas formas:
 - `011 98765 4321`
 - `+55 (11) 9.8765-4321`
 
-A regra exige que qualquer uma dessas variações identifique o mesmo número, impedindo duplicidade no sistema.
+A regra exige que qualquer uma dessas variações identifique o mesmo número, impedindo duplicidade no sistema entre contatos ativos.
 
-### 1.2 Algoritmo de Normalização Canônica (Canonical Phone Normalizer)
-Para o padrão brasileiro / internacional:
-1. **Remoção de caracteres não numéricos:** Remove espaços, parênteses, traços, pontos e barras. Mantém apenas dígitos (`0-9`).
+### 1.2 Algoritmo de Normalização Canônica (PhoneNormalizer)
+1. **Remoção de caracteres não numéricos:** Remove pontuações, espaços e caracteres especiais, retendo apenas dígitos (`0-9`).
 2. **Tratamento do DDI (+55):**
-   - Se os dígitos começarem com `55` e tiverem mais de 11 dígitos (ex: 12 ou 13 dígitos como `5511987654321`), remove-se o prefixo `55` para a comparação local padrão, ou armazena-se de forma padronizada internacional (`+5511987654321`).
-   - Adotamos o formato **E.164 canônico**: `+55{DDD}{Número}`.
+   - Reconhece o código internacional do Brasil (`55`). Converte para o padrão internacional **E.164 canônico**: `+55{DDD}{Número}`.
 3. **Tratamento do zero de longa distância:**
-   - Se o número iniciar com `0` antes do DDD (ex: `011987654321`), o zero inicial é descartado.
-4. **Tratamento de 8 vs 9 dígitos em celulares:**
-   - Números móveis no Brasil possuem 9 dígitos (`9XXXX-XXXX`) após o DDD. Se informado com 8 dígitos em faixa móvel legada ou se for fixo (8 dígitos, inicial 2-5), a normalização valida a consistência de tamanho (10 ou 11 dígitos com DDD).
+   - Se o número iniciar com `0` antes de um DDD válido (ex: `011987654321`), o zero inicial é descartado de forma controlada.
+4. **Validação Estrita de DDDs e Telefonia Brasileira:**
+   - Validação da tabela oficial de códigos de área (DDDs) da Anatel.
+   - Celulares: 11 dígitos no total (com DDD), exigindo o nono dígito `9`.
+   - Fixo: 10 dígitos no total (com DDD), aceitando dígitos iniciais de 2 a 5.
 5. **Persistência Dupla:**
-   - `PhoneOriginal`: String como digitada pelo usuário para preservar a preferência visual se desejado.
-   - `PhoneNormalized`: String limpa padronizada no formato canônico (ex: `+5511987654321` ou `11987654321`), indexada com restrição de unicidade.
+   - `PhoneOriginal`: Mantém a string original digitada para conveniência visual.
+   - `PhoneNormalized`: String limpa padronizada no formato canônico E.164, indexada com restrição de unicidade.
 
 ### 1.3 Validação de Unicidade no Banco
-- A verificação ocorre antes do salvamento (`ExistsAsync(normalizedPhone, excludeContactId)`) e é blindada no banco de dados através de um **Unique Index condicional** (excluindo contatos com soft-delete ativo):
+- A verificação ocorre antes do salvamento (`ExistsByNormalizedPhoneAsync`) e é blindada no banco de dados através de um **Unique Index condicional** (excluindo contatos com soft-delete ativo):
   ```sql
   CREATE UNIQUE INDEX IX_Contacts_PhoneNormalized ON Contacts (PhoneNormalized) WHERE IsDeleted = 0;
   ```
 
 ---
 
-## 2. RN02: Importação de Contatos via CSV
+## 2. RN02: Importação Resiliente de Contatos via CSV
 
-### 2.1 Especificação do Formato de Arquivo
+### 2.1 Especificação e Formato
 - **Extensões aceitas:** `.csv`, `.txt`
-- **Encodings suportados:** `UTF-8`, `ISO-8859-1` (Latin1)
-- **Delimitadores suportados:** Vírgula (`,`) ou Ponto-e-vírgula (`;`) detectados automaticamente.
-- **Cabeçalho esperado:** Colunas flexíveis com sinônimos suportados:
+- **Encodings suportados:** `UTF-8` (com ou sem BOM), `ISO-8859-1` (Latin1).
+- **Detecção automática de delimitadores:** Suporta vírgula (`,`), ponto-e-vírgula (`;`) e tabulação (`\t`).
+- **Mapeamento flexível de cabeçalhos:** Reconhece variações comuns:
   - Nome: `nome`, `name`, `full_name`, `contato`
-  - E-mail: `email`, `e-mail`, `correio`
+  - E-mail: `email`, `e-mail`, `correio`, `mail`
   - Telefone: `telefone`, `phone`, `celular`, `tel`, `whatsapp`
 
-### 2.2 Estratégia de Processamento: Tolerância a Falhas e Relatório Detalhado
-A importação **não deve falhar totalmente** se algumas linhas forem inválidas:
+### 2.2 Tolerância a Falhas e Diagnóstico Detalhado
+A importação **não é abortada** por causa de linhas incorretas:
 - Linhas válidas são importadas e persistidas com sucesso.
-- Linhas com inconsistências são catalogadas em um relatório de processamento.
-- Casos de invalidação por linha:
-  - Nome em branco ou com caracteres inválidos.
-  - E-mail com formato inválido (RFC 5322 regex).
-  - Telefone vazio, com tamanho insuficiente ou que não pode ser normalizado.
-  - Telefone duplicado com contato já existente no banco de dados.
-  - Telefone duplicado com outra linha do próprio arquivo CSV em processamento.
-- **Retorno da API:**
-  ```json
-  {
-    "totalRows": 100,
-    "importedCount": 85,
-    "failedCount": 15,
-    "errors": [
-      { "line": 4, "rawContent": "João;;11999999999", "reason": "E-mail inválido ou vazio" },
-      { "line": 12, "rawContent": "Maria;maria@email.com;(11) 98765-4321", "reason": "Telefone já cadastrado no sistema" }
-    ]
-  }
-  ```
+- Linhas com inconsistências são catalogadas em um relatório detalhado contendo:
+  - Número da linha (`LineNumber`)
+  - Conteúdo original (`RawLine`)
+  - Campo com falha (`Field`)
+  - Motivo claro da rejeição (`Reason`)
+- **Prevenção de Duplicidades Intra-arquivo:** Se o mesmo lote CSV contiver duas linhas com o mesmo telefone normalizado, a primeira é aceita e as subsequentes são rejeitadas com erro explicativo indicando a colisão intra-lote.
+- **Vínculo de Propriedade:** Contatos importados são automaticamente vinculados ao usuário logado executor da importação.
 
 ---
 
@@ -81,31 +69,62 @@ A importação **não deve falhar totalmente** se algumas linhas forem inválida
    - `RetentionExpiresAt = DeletedAt.AddDays(30)`
 3. O contato deixa de aparecer na listagem padrão e vai para a **Lixeira (Recycle Bin)**.
 4. **Impacto na Unicidade do Telefone:**
-   - *Premissa Adotada:* Enquanto estiver na lixeira, o número do contato excluído **não** deve bloquear um novo cadastro caso um novo titular assuma o número (ou alternativamente, a restauração verifica se o número continua disponível no momento de restaurar). A melhor prática adotada: o índice de unicidade ignora registros onde `IsDeleted = true`. Se outro contato usar aquele telefone enquanto este estiver na lixeira, e o usuário tentar restaurar o contato antigo, o sistema avisa amigavelmente que o telefone já foi associado a outro contato ativo.
+   - O índice de unicidade ignora registros onde `IsDeleted = true`. Se outro contato ativo for cadastrado com o mesmo número enquanto o original estiver na lixeira, e houver tentativa de restaurar o original, o sistema acusa conflito amigável (HTTP 409) informando que o número foi ocupado.
 
-### 3.2 Restauração
-- A qualquer momento dentro do período de 30 dias (`DateTime.UtcNow <= RetentionExpiresAt`), o usuário pode restaurar o contato.
-- Ação de Restauração:
-  - Verifica se o telefone normalizado colide com algum contato ativo atual.
-  - Se estiver limpo, seta `IsDeleted = false`, `DeletedAt = null`, `RetentionExpiresAt = null`.
-- **Expurgo Automático de Vencidos:**
-  - Registros com `IsDeleted = true` e `RetentionExpiresAt < DateTime.UtcNow` tornam-se inelegíveis para restauração e são expurgados por rotina de limpeza periódica ou marcados como expirados.
+### 3.2 Restauração e Worker Automático de Purga
+- Dentro dos 30 dias (`DateTime.UtcNow <= RetentionExpiresAt`), o contato pode ser restaurado para a lista ativa.
+- **Expurgo em Segundo Plano (`RecycleBinPurgeBackgroundService`):**
+  - Serviço em background do .NET que executa periodicamente para remover fisicamente do banco de dados registros cuja retenção tenha expirado (`RetentionExpiresAt <= UtcNow`).
 
 ---
 
 ## 4. RN04: Exclusão Definitiva por LGPD (Direito ao Esquecimento)
 
-### 4.1 Requisitos Legais da LGPD (Lei 13.709/2018)
-O artigo 18, inciso VI da LGPD garante ao titular a eliminação dos dados pessoais tratados com o seu consentimento.
+### 4.1 Requisitos Legais da LGPD (Art. 18, VI da Lei 13.709/2018)
+Garante ao titular a eliminação irreversível de dados tratados com seu consentimento.
 
 ### 4.2 Comportamento da Exclusão LGPD
-1. **Irrevogabilidade:** O usuário/administrador solicita a exclusão explícita por LGPD (ação separada da exclusão comum).
+1. **Irrevogabilidade:** Ação explícita de destruição com aviso claro e confirmação obrigatória de ciência.
 2. **Hard Delete dos Dados Pessoais (PII):**
-   - Todos os dados cadastrais (Nome, E-mail, Telefone original e normalizado, etc.) são permanentemente excluídos da tabela de contatos.
-3. **Auditoria de Conformidade Anonimizada:**
-   - Para fins de comprovação regulatória perante a ANPD (Autoridade Nacional de Proteção de Dados), gera-se um registro na tabela `LgpdComplianceAudit`:
-     - `RequestId`: UUID único do pedido.
-     - `ContactIdOriginal`: Identificador ou hash irreversível (SHA-256) do contato.
-     - `PurgedAt`: Data e hora UTC da exclusão.
-     - `LegalReason`: "Exercício do direito de exclusão pelo titular - Art. 18, VI LGPD".
-     - *Nenhum dado pessoal (nome, email, telefone em texto puro) é mantido na auditoria.*
+   - Todos os dados cadastrais (Nome, E-mail, Telefone original e normalizado) são permanentemente destruídos e removidos do banco.
+3. **Auditoria Criptográfica Anonimizada:**
+   - Inserção na tabela `LgpdComplianceAudits`:
+     - `ContactHash`: Hash criptográfico SHA-256 (`PhoneNormalized + ContactId`) para comprovação legal perante a ANPD.
+     - `ExecutedAt`: Timestamp UTC.
+     - `LegalBasis`: Artigo 18, VI da Lei 13.709/2018.
+     - `RequestedBy`: Identificador do solicitante.
+     - *Nenhum dado pessoal legível (PII) é mantido.*
+
+---
+
+## 5. RN05: Autenticação Segura & RBAC (Role-Based Access Control)
+
+### 5.1 Mecanismo de Autenticação
+- Emissão de **Tokens JWT** assinados com chave simétrica HMAC-SHA256, contendo `NameIdentifier`, `Name`, `FullName` e `Role`.
+- **Validade do Access Token:** 60 minutos.
+- **Refresh Token Rotation:** Chave aleatória de 64 bytes com validade de 7 dias, armazenada de forma segura na entidade `User` com revogação e rotação automática a cada renovação.
+
+### 5.2 Papéis e Matriz de Permissões
+1. **Administrador (`Admin`):**
+   - Acesso global à aplicação.
+   - Gestão de usuários (criação, consulta, revogação de acessos).
+   - Visualização e exclusão (soft delete e expurgo LGPD) de contatos de **todas as agendas**.
+   - Acesso à auditoria completa de segurança e acessos (`/api/access/logs`).
+   - Monitoramento das métricas de desempenho APM (`/api/metrics/summary`).
+2. **Usuário Padrão (`Usuario`):**
+   - Gerenciamento restrito à sua própria agenda (criação, edição, exclusão e importação CSV de contatos próprios).
+   - Acesso ao seu perfil com histórico de suas próprias movimentações e logins.
+   - Não possui visibilidade de agendas alheias, gestão de usuários ou métricas de desempenho APM.
+
+---
+
+## 6. RN06: Auditoria de Segurança & Telemetria APM
+
+### 6.1 Logs de Auditoria de Acesso (`AccessLogs`)
+- Cada tentativa de autenticação gera um evento imutável com status de sucesso (`LOGIN_SUCCESS`) ou falha (`LOGIN_FAILED`), endereço IP de origem, User-Agent do navegador, timestamp e justificativa em caso de erro.
+- Administradores consultam a trilha completa de auditoria; usuários visualizam apenas o seu próprio histórico.
+
+### 6.2 Telemetria de Desempenho (`PerformanceTelemetryMiddleware`)
+- Intercepta requisições HTTP na API, calculando o tempo exato de execução em milissegundos.
+- Registra rota, método HTTP, status code e duração.
+- O endpoint `/api/metrics/summary` consolida métricas de APM: total de requisições, latência média, p50, p95, p99 e taxa de erro.
