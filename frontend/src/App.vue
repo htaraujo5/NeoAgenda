@@ -120,7 +120,7 @@ async function handleLogout() {
 
       <!-- Menu Principal -->
       <nav class="sidebar-nav">
-        <div class="nav-section-title">PRINCIPAL</div>
+        <div class="nav-section-title">MENU</div>
 
         <button
           class="nav-item"
@@ -130,15 +130,6 @@ async function handleLogout() {
           <i class="pi pi-users"></i>
           <span>Agenda & Contatos</span>
           <Tag v-if="store.totalCount > 0" :value="store.totalCount" severity="secondary" class="nav-counter" />
-        </button>
-
-        <button
-          class="nav-item"
-          :class="{ active: currentNav === 'profile' }"
-          @click="currentNav = 'profile'"
-        >
-          <i class="pi pi-user"></i>
-          <span>Meu Perfil & Acesso</span>
         </button>
 
         <!-- Seção Administrativa (Exclusivo Administrador) -->
@@ -205,14 +196,14 @@ async function handleLogout() {
         <div>
           <h2 class="content-title">
             <template v-if="currentNav === 'contacts'">Gestão de Contatos & Agenda</template>
-            <template v-else-if="currentNav === 'profile'">Dados do Usuário & Permissões</template>
+            <template v-else-if="currentNav === 'profile'">Meus Dados & Histórico</template>
             <template v-else-if="currentNav === 'access'">Gestão de Usuários & Auditoria</template>
             <template v-else-if="currentNav === 'metrics'">Métricas & Acompanhamento de Desempenho</template>
           </h2>
           <span class="content-desc">
             <template v-if="currentNav === 'contacts'">Controle completo com unicidade E.164, retenção de 30 dias e LGPD.</template>
-            <template v-else-if="currentNav === 'profile'">Detalhes da sua conta, credenciais ativas e nível de acesso atribuído.</template>
-            <template v-else-if="currentNav === 'access'">Criação de novos operadores, logs de logins e revogação de acessos.</template>
+            <template v-else-if="currentNav === 'profile'">Visualize suas informações cadastrais e o histórico pessoal das suas atividades.</template>
+            <template v-else-if="currentNav === 'access'">Criação de novos operadores, logs gerais e revogação de acessos.</template>
             <template v-else-if="currentNav === 'metrics'">Telemetria isolada com latência média, percentil P95 e status codes da API.</template>
           </span>
         </div>

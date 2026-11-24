@@ -241,6 +241,13 @@ export const accessApi = {
       params: { count }
     });
     return response.data;
+  },
+
+  async getMyLogs(count = 100): Promise<import('../types/telemetry').AccessLogDto[]> {
+    const response = await api.get<import('../types/telemetry').AccessLogDto[]>('/access/my-logs', {
+      params: { count }
+    });
+    return response.data;
   }
 };
 

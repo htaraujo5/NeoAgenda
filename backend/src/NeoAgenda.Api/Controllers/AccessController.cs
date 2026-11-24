@@ -48,7 +48,26 @@ public class AccessController : ControllerBase
     [HttpGet("logs")]
     public async Task<IActionResult> GetLogs([FromQuery] int count = 100, CancellationToken ct = default)
     {
+        // Se for admin, pode ver os logs gerais. Se for usuário comum, vê apenas os seus próprios logs
+        var currentUser = User.Identity?.Name ?? string.Empty;
+        var role = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? "Usuario";
+        var isAdmin = role.Equals("Admin", StringComparison.OrdinalIgnoreCase) || role.Equals("Administrador", StringComparison.OrdinalIgnoreCase);
+
+        if (!isAdmin)
+        {
+            var userLogs = await _accessService.GetUserAccessLogsAsync(currentUser, count, ct);
+            return Ok(userLogs);
+        }
+
         var logs = await _accessService.GetAccessLogsAsync(count, ct);
         return Ok(logs);
+    }
+
+    [HttpGet("my-logs")]
+    public async Task<IActionResult> GetMyLogs([FromQuery] int count = 100, CancellationToken ct = default)
+    {
+        var currentUser = User.Identity?.Name ?? string.Empty;
+        var userLogs = await _accessService.GetUserAccessLogsAsync(currentUser, count, ct);
+        return Ok(userLogs);
     }
 }

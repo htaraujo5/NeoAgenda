@@ -27,6 +27,16 @@ public class AccessLogRepository : IAccessLogRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<AccessLog>> GetByUserAsync(string username, int count = 100, CancellationToken ct = default)
+    {
+        var normalized = username.ToLowerInvariant().Trim();
+        return await _context.AccessLogs
+            .Where(l => l.Username.ToLower() == normalized)
+            .OrderByDescending(l => l.Timestamp)
+            .Take(count)
+            .ToListAsync(ct);
+    }
+
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         return await _context.SaveChangesAsync(ct);

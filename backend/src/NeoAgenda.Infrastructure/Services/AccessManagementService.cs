@@ -84,6 +84,21 @@ public class AccessManagementService : IAccessManagementService
         )).ToList();
     }
 
+    public async Task<IReadOnlyList<AccessLogDto>> GetUserAccessLogsAsync(string username, int count = 100, CancellationToken ct = default)
+    {
+        var logs = await _accessLogRepository.GetByUserAsync(username, count, ct);
+        return logs.Select(l => new AccessLogDto(
+            l.Id,
+            l.Username,
+            l.Action,
+            l.IpAddress,
+            l.UserAgent,
+            l.Success,
+            l.Details,
+            l.Timestamp
+        )).ToList();
+    }
+
     public async Task RecordAccessLogAsync(string username, string action, string ipAddress, string userAgent, bool success, string? details = null, CancellationToken ct = default)
     {
         var log = new AccessLog(username, action, ipAddress, userAgent, success, details);
