@@ -1,0 +1,37 @@
+services:
+  neoagenda-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: neoagenda-api
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DatabaseProvider=Sqlite
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/neoagenda.db
+    volumes:
+      - neoagenda-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  neoagenda-front:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: neoagenda-front
+    ports:
+      - "8080:80"
+    depends_on:
+      neoagenda-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  neoagenda-data:
+    driver: local
