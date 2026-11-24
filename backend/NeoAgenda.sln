@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NeoAgenda.Domain", "src/NeoAgenda.Domain/NeoAgenda.Domain.csproj", "{B8D43A6E-1234-4567-89AB-CDEF01234567}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NeoAgenda.Application", "src/NeoAgenda.Application/NeoAgenda.Application.csproj", "{C9E54B7F-2345-5678-90BC-DEF012345678}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NeoAgenda.UnitTests", "tests/NeoAgenda.UnitTests/NeoAgenda.UnitTests.csproj", "{DAF65C80-3456-6789-01CD-EF0123456789}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B8D43A6E-1234-4567-89AB-CDEF01234567}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8D43A6E-1234-4567-89AB-CDEF01234567}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8D43A6E-1234-4567-89AB-CDEF01234567}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8D43A6E-1234-4567-89AB-CDEF01234567}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9E54B7F-2345-5678-90BC-DEF012345678}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9E54B7F-2345-5678-90BC-DEF012345678}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9E54B7F-2345-5678-90BC-DEF012345678}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9E54B7F-2345-5678-90BC-DEF012345678}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DAF65C80-3456-6789-01CD-EF0123456789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DAF65C80-3456-6789-01CD-EF0123456789}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DAF65C80-3456-6789-01CD-EF0123456789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DAF65C80-3456-6789-01CD-EF0123456789}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
