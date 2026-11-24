@@ -70,7 +70,7 @@ public class ContactServiceCsvTests
             Contact.Create("Contato B", "b@teste.com", "(21) 98888-7777", "+5521988887777")
         };
 
-        _contactRepoMock.Setup(r => r.GetActivePagedAsync(null, 1, 100000, "name", false, It.IsAny<CancellationToken>()))
+        _contactRepoMock.Setup(r => r.GetActivePagedAsync(null, 1, 100000, "name", false, It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
                         .ReturnsAsync((contacts, 2));
 
         // Act

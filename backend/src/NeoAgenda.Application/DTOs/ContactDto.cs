@@ -7,7 +7,8 @@ public record ContactDto(
     string PhoneOriginal,
     string PhoneNormalized,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    string CreatedBy = "system"
 );
 
 public record CreateContactDto(
@@ -39,7 +40,8 @@ public record RecycleBinContactDto(
     DateTime DeletedAt,
     DateTime RetentionExpiresAt,
     int DaysRemaining,
-    bool IsExpired
+    bool IsExpired,
+    string CreatedBy = "system"
 );
 
 public record SoftDeleteResultDto(

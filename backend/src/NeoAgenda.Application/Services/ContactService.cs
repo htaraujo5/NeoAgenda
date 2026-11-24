@@ -34,6 +34,8 @@ public class ContactService : IContactService
         int pageSize, 
         string? sortBy, 
         bool sortDesc, 
+        string? currentUser = null,
+        bool isAdmin = true,
         CancellationToken ct = default)
     {
         if (page < 1) page = 1;
@@ -41,7 +43,7 @@ public class ContactService : IContactService
         if (pageSize > 100) pageSize = 100;
 
         var (items, totalCount) = await _contactRepository.GetActivePagedAsync(
-            search, page, pageSize, sortBy, sortDesc, ct);
+            search, page, pageSize, sortBy, sortDesc, currentUser, isAdmin, ct);
 
         var dtos = items.Select(MapToDto).ToList();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -49,16 +51,19 @@ public class ContactService : IContactService
         return new PagedResultDto<ContactDto>(dtos, page, pageSize, totalCount, totalPages);
     }
 
-    public async Task<ContactDto> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<ContactDto> GetByIdAsync(Guid id, string? currentUser = null, bool isAdmin = true, CancellationToken ct = default)
     {
         var contact = await _contactRepository.GetByIdAsync(id, includeDeleted: false, ct);
         if (contact == null)
             throw new DomainException($"Contato com ID '{id}' não foi encontrado.");
 
+        if (!isAdmin && !string.IsNullOrWhiteSpace(currentUser) && contact.CreatedBy != currentUser)
+            throw new DomainException($"Acesso negado: você não tem permissão para visualizar este contato.");
+
         return MapToDto(contact);
     }
 
-    public async Task<ContactDto> CreateAsync(CreateContactDto dto, CancellationToken ct = default)
+    public async Task<ContactDto> CreateAsync(CreateContactDto dto, string? currentUser = null, CancellationToken ct = default)
     {
         var normalizedPhone = _phoneNormalizer.Normalize(dto.Phone);
 
@@ -69,18 +74,21 @@ public class ContactService : IContactService
             throw new DomainException($"Já existe um contato ativo cadastrado com o telefone informado ({normalizedPhone}).");
         }
 
-        var contact = Contact.Create(dto.Name, dto.Email, dto.Phone, normalizedPhone);
+        var contact = Contact.Create(dto.Name, dto.Email, dto.Phone, normalizedPhone, currentUser ?? "system");
         await _contactRepository.AddAsync(contact, ct);
         await _contactRepository.SaveChangesAsync(ct);
 
         return MapToDto(contact);
     }
 
-    public async Task<ContactDto> UpdateAsync(Guid id, UpdateContactDto dto, CancellationToken ct = default)
+    public async Task<ContactDto> UpdateAsync(Guid id, UpdateContactDto dto, string? currentUser = null, bool isAdmin = true, CancellationToken ct = default)
     {
         var contact = await _contactRepository.GetByIdAsync(id, includeDeleted: false, ct);
         if (contact == null)
             throw new DomainException($"Contato com ID '{id}' não foi encontrado.");
+
+        if (!isAdmin && !string.IsNullOrWhiteSpace(currentUser) && contact.CreatedBy != currentUser)
+            throw new DomainException($"Acesso negado: você não tem permissão para alterar este contato.");
 
         var normalizedPhone = _phoneNormalizer.Normalize(dto.Phone);
 
@@ -98,11 +106,14 @@ public class ContactService : IContactService
         return MapToDto(contact);
     }
 
-    public async Task<SoftDeleteResultDto> SoftDeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<SoftDeleteResultDto> SoftDeleteAsync(Guid id, string? currentUser = null, bool isAdmin = true, CancellationToken ct = default)
     {
         var contact = await _contactRepository.GetByIdAsync(id, includeDeleted: false, ct);
         if (contact == null)
             throw new DomainException($"Contato com ID '{id}' não foi encontrado.");
+
+        if (!isAdmin && !string.IsNullOrWhiteSpace(currentUser) && contact.CreatedBy != currentUser)
+            throw new DomainException($"Acesso negado: você não tem permissão para excluir este contato.");
 
         contact.MarkAsDeleted();
         _contactRepository.Update(contact);
@@ -116,11 +127,14 @@ public class ContactService : IContactService
         );
     }
 
-    public async Task<RestoreContactResultDto> RestoreAsync(Guid id, CancellationToken ct = default)
+    public async Task<RestoreContactResultDto> RestoreAsync(Guid id, string? currentUser = null, bool isAdmin = true, CancellationToken ct = default)
     {
         var contact = await _contactRepository.GetByIdAsync(id, includeDeleted: true, ct);
         if (contact == null || !contact.IsDeleted)
             throw new DomainException($"Contato excluído com ID '{id}' não foi encontrado.");
+
+        if (!isAdmin && !string.IsNullOrWhiteSpace(currentUser) && contact.CreatedBy != currentUser)
+            throw new DomainException($"Acesso negado: você não tem permissão para restaurar este contato.");
 
         if (!contact.CanBeRestored())
         {
@@ -145,11 +159,14 @@ public class ContactService : IContactService
         );
     }
 
-    public async Task<LgpdPurgeResultDto> PurgeLgpdAsync(Guid id, string? requestedBy = null, CancellationToken ct = default)
+    public async Task<LgpdPurgeResultDto> PurgeLgpdAsync(Guid id, string? requestedBy = null, bool isAdmin = true, CancellationToken ct = default)
     {
         var contact = await _contactRepository.GetByIdAsync(id, includeDeleted: true, ct);
         if (contact == null)
             throw new DomainException($"Contato com ID '{id}' não foi encontrado.");
+
+        if (!isAdmin && !string.IsNullOrWhiteSpace(requestedBy) && contact.CreatedBy != requestedBy)
+            throw new DomainException($"Acesso negado: você não tem permissão para expurgar este contato.");
 
         // Cria hash irreversível do telefone normalizado para auditoria de compliance
         var hash = ComputeSha256(contact.PhoneNormalized + contact.Id);
@@ -172,9 +189,9 @@ public class ContactService : IContactService
         );
     }
 
-    public async Task<IReadOnlyList<RecycleBinContactDto>> GetRecycleBinAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<RecycleBinContactDto>> GetRecycleBinAsync(string? currentUser = null, bool isAdmin = true, CancellationToken ct = default)
     {
-        var items = await _contactRepository.GetRecycleBinAsync(ct);
+        var items = await _contactRepository.GetRecycleBinAsync(currentUser, isAdmin, ct);
         var now = DateTime.UtcNow;
 
         return items.Select(c => new RecycleBinContactDto(
@@ -186,7 +203,8 @@ public class ContactService : IContactService
             c.DeletedAt ?? now,
             c.RetentionExpiresAt ?? now,
             c.GetDaysRemainingInRecycleBin(now),
-            !c.CanBeRestored(now)
+            !c.CanBeRestored(now),
+            c.CreatedBy
         )).ToList();
     }
 
@@ -202,7 +220,7 @@ public class ContactService : IContactService
         )).ToList();
     }
 
-    public async Task<CsvImportResultDto> ImportCsvAsync(Stream csvStream, CancellationToken ct = default)
+    public async Task<CsvImportResultDto> ImportCsvAsync(Stream csvStream, string? currentUser = null, CancellationToken ct = default)
     {
         var parseResult = await _csvContactParser.ParseAsync(csvStream, ct);
         var importedContacts = new List<ContactDto>();
@@ -225,7 +243,7 @@ public class ContactService : IContactService
                 continue;
             }
 
-            var contact = Contact.Create(record.Name, record.Email, record.PhoneOriginal, record.PhoneNormalized);
+            var contact = Contact.Create(record.Name, record.Email, record.PhoneOriginal, record.PhoneNormalized, currentUser ?? "system");
             await _contactRepository.AddAsync(contact, ct);
             importedContacts.Add(MapToDto(contact));
         }
@@ -250,9 +268,9 @@ public class ContactService : IContactService
         );
     }
 
-    public async Task<byte[]> ExportCsvAsync(CancellationToken ct = default)
+    public async Task<byte[]> ExportCsvAsync(string? currentUser = null, bool isAdmin = true, CancellationToken ct = default)
     {
-        var (items, _) = await _contactRepository.GetActivePagedAsync(null, 1, 100000, "name", false, ct);
+        var (items, _) = await _contactRepository.GetActivePagedAsync(null, 1, 100000, "name", false, currentUser, isAdmin, ct);
         var sb = new StringBuilder();
         sb.AppendLine("Nome;Email;Telefone;DataCadastro");
 
@@ -279,7 +297,8 @@ public class ContactService : IContactService
             contact.PhoneOriginal,
             contact.PhoneNormalized,
             contact.CreatedAt,
-            contact.UpdatedAt
+            contact.UpdatedAt,
+            contact.CreatedBy
         );
     }
 

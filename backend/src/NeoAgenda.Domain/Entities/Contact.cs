@@ -15,6 +15,7 @@ public class Contact
 
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+    public string CreatedBy { get; private set; } = "system";
 
     public bool IsDeleted { get; private set; }
     public DateTime? DeletedAt { get; private set; }
@@ -26,7 +27,7 @@ public class Contact
     /// <summary>
     /// Factory method para criação de um novo contato validado.
     /// </summary>
-    public static Contact Create(string name, string email, string phoneOriginal, string phoneNormalized)
+    public static Contact Create(string name, string email, string phoneOriginal, string phoneNormalized, string createdBy = "system")
     {
         ValidateRequiredFields(name, email, phoneOriginal, phoneNormalized);
 
@@ -37,6 +38,7 @@ public class Contact
             Email = email.Trim().ToLowerInvariant(),
             PhoneOriginal = phoneOriginal.Trim(),
             PhoneNormalized = phoneNormalized.Trim(),
+            CreatedBy = string.IsNullOrWhiteSpace(createdBy) ? "system" : createdBy.Trim(),
             CreatedAt = DateTime.UtcNow,
             IsDeleted = false
         };

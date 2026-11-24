@@ -4,6 +4,7 @@ export interface ContactDto {
   email: string;
   phoneOriginal: string;
   phoneNormalized: string;
+  createdBy?: string;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -34,6 +35,7 @@ export interface RecycleBinContactDto {
   email: string;
   phoneOriginal: string;
   phoneNormalized: string;
+  createdBy?: string;
   deletedAt: string;
   retentionExpiresAt: string;
   daysRemaining: number;
