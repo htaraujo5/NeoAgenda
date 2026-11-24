@@ -8,6 +8,7 @@ import type {
   SoftDeleteResultDto,
   RestoreContactResultDto,
   LgpdPurgeResultDto,
+  LgpdAuditLogDto,
   CsvImportResultDto
 } from '../types/contact';
 
@@ -64,6 +65,11 @@ export const contactApi = {
 
   async getRecycleBin(): Promise<RecycleBinContactDto[]> {
     const response = await api.get<RecycleBinContactDto[]>('/contacts/recycle-bin');
+    return response.data;
+  },
+
+  async getLgpdAudits(): Promise<LgpdAuditLogDto[]> {
+    const response = await api.get<LgpdAuditLogDto[]>('/contacts/lgpd-audits');
     return response.data;
   },
 

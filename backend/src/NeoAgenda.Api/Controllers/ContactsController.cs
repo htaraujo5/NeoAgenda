@@ -123,6 +123,17 @@ public class ContactsController : ControllerBase
     }
 
     /// <summary>
+    /// Lista o histórico de protocolos anônimos de conformidade LGPD (Art. 18, VI).
+    /// </summary>
+    [HttpGet("lgpd-audits")]
+    [ProducesResponseType(typeof(IReadOnlyList<LgpdAuditLogDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetLgpdAudits(CancellationToken ct)
+    {
+        var result = await _contactService.GetLgpdAuditLogsAsync(ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Importa contatos em lote via arquivo CSV, com tratamento tolerante a falhas por linha.
     /// </summary>
     [HttpPost("import-csv")]

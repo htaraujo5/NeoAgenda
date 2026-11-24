@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { contactApi, extractErrorMessage } from '../api/client';
-import type { ContactDto, RecycleBinContactDto, CreateContactDto, UpdateContactDto, CsvImportResultDto } from '../types/contact';
+import type { ContactDto, RecycleBinContactDto, CreateContactDto, UpdateContactDto, CsvImportResultDto, LgpdAuditLogDto } from '../types/contact';
 
 export const useContactStore = defineStore('contact', () => {
   // State
   const contacts = ref<ContactDto[]>([]);
   const recycleBinContacts = ref<RecycleBinContactDto[]>([]);
+  const lgpdAudits = ref<LgpdAuditLogDto[]>([]);
   const totalCount = ref(0);
   const totalPages = ref(1);
   const currentPage = ref(1);
@@ -17,6 +18,7 @@ export const useContactStore = defineStore('contact', () => {
 
   const isLoading = ref(false);
   const isRecycleBinLoading = ref(false);
+  const isLgpdAuditsLoading = ref(false);
   const errorMessage = ref<string | null>(null);
 
   // Actions
@@ -54,6 +56,18 @@ export const useContactStore = defineStore('contact', () => {
     }
   }
 
+  async function fetchLgpdAudits() {
+    isLgpdAuditsLoading.value = true;
+    try {
+      lgpdAudits.value = await contactApi.getLgpdAudits();
+    } catch (err) {
+      errorMessage.value = extractErrorMessage(err);
+      throw err;
+    } finally {
+      isLgpdAuditsLoading.value = false;
+    }
+  }
+
   async function createContact(dto: CreateContactDto) {
     const created = await contactApi.createContact(dto);
     await fetchContacts();
@@ -84,6 +98,7 @@ export const useContactStore = defineStore('contact', () => {
     const result = await contactApi.purgeLgpd(id, requestedBy);
     await fetchContacts();
     await fetchRecycleBin();
+    await fetchLgpdAudits();
     return result;
   }
 
@@ -96,6 +111,7 @@ export const useContactStore = defineStore('contact', () => {
   return {
     contacts,
     recycleBinContacts,
+    lgpdAudits,
     totalCount,
     totalPages,
     currentPage,
@@ -105,9 +121,11 @@ export const useContactStore = defineStore('contact', () => {
     sortDesc,
     isLoading,
     isRecycleBinLoading,
+    isLgpdAuditsLoading,
     errorMessage,
     fetchContacts,
     fetchRecycleBin,
+    fetchLgpdAudits,
     createContact,
     updateContact,
     softDeleteContact,

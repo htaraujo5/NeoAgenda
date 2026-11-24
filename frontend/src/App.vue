@@ -22,7 +22,9 @@ const toast = useToast();
 const confirm = useConfirm();
 
 // State
-const activeTab = ref<'active' | 'recycle'>('active');
+const activeTab = ref<'active' | 'recycle' | 'lgpd'>('active');
+const isDarkMode = ref(false);
+
 const formDialogVisible = ref(false);
 const editingContact = ref<ContactDto | null>(null);
 
@@ -33,14 +35,33 @@ const csvDialogVisible = ref(false);
 const csvDialogRef = ref<InstanceType<typeof CsvImportDialog> | null>(null);
 
 onMounted(async () => {
+  // Inicialização do Dark Mode
+  const savedTheme = localStorage.getItem('neoagenda-theme');
+  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    isDarkMode.value = true;
+    document.documentElement.classList.add('dark');
+  }
+
   await loadData();
 });
+
+function toggleDarkMode() {
+  isDarkMode.value = !isDarkMode.value;
+  if (isDarkMode.value) {
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('neoagenda-theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('neoagenda-theme', 'light');
+  }
+}
 
 async function loadData() {
   try {
     await Promise.all([
       store.fetchContacts(),
-      store.fetchRecycleBin()
+      store.fetchRecycleBin(),
+      store.fetchLgpdAudits()
     ]);
   } catch (err) {
     toast.add({
@@ -151,6 +172,17 @@ async function handleCsvUpload(file: File) {
 function downloadExportCsv() {
   window.open(contactApi.getExportCsvUrl(), '_blank');
 }
+
+function exportLgpdAuditsJson() {
+  if (store.lgpdAudits.length === 0) return;
+  const blob = new Blob([JSON.stringify(store.lgpdAudits, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `comprovantes_auditoria_lgpd_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
 
 <template>
@@ -174,13 +206,21 @@ function downloadExportCsv() {
         <Button label="Novo Contato" icon="pi pi-plus" @click="openCreateDialog" />
         <Button label="Importar CSV" icon="pi pi-upload" severity="secondary" outlined @click="csvDialogVisible = true" />
         <Button label="Exportar CSV" icon="pi pi-download" severity="secondary" text @click="downloadExportCsv" />
+        <Button
+          :icon="isDarkMode ? 'pi pi-sun' : 'pi pi-moon'"
+          severity="secondary"
+          text
+          rounded
+          @click="toggleDarkMode"
+          :title="isDarkMode ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
+        />
       </div>
     </header>
 
     <!-- Main Card -->
     <main class="card">
       <!-- Tabs Switcher -->
-      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex-wrap: wrap;">
         <Button
           :label="'Contatos Ativos (' + store.totalCount + ')'"
           icon="pi pi-users"
@@ -194,6 +234,13 @@ function downloadExportCsv() {
           :text="activeTab !== 'recycle'"
           :severity="activeTab === 'recycle' ? 'warning' : 'secondary'"
           @click="activeTab = 'recycle'"
+        />
+        <Button
+          :label="'Auditoria LGPD (' + store.lgpdAudits.length + ')'"
+          icon="pi pi-shield"
+          :text="activeTab !== 'lgpd'"
+          :severity="activeTab === 'lgpd' ? 'danger' : 'secondary'"
+          @click="activeTab = 'lgpd'; store.fetchLgpdAudits();"
         />
       </div>
 
@@ -263,7 +310,7 @@ function downloadExportCsv() {
       </div>
 
       <!-- Tabela da Lixeira (Janela de 30 Dias) -->
-      <div v-else>
+      <div v-else-if="activeTab === 'recycle'">
         <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid #f59e0b; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.25rem; display: flex; gap: 0.75rem; align-items: center;">
           <i class="pi pi-clock" style="font-size: 1.5rem; color: #f59e0b;"></i>
           <span style="font-size: 0.85rem; color: var(--text-main);">
@@ -323,6 +370,71 @@ function downloadExportCsv() {
                   title="Expurgo Imediato LGPD"
                 />
               </div>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <!-- Tabela de Auditoria LGPD (Compliance Art. 18, VI) -->
+      <div v-else-if="activeTab === 'lgpd'">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <i class="pi pi-shield" style="font-size: 1.75rem; color: #ef4444;"></i>
+            <div>
+              <h4 style="font-size: 1.1rem; font-weight: 700;">Trilha de Auditoria e Conformidade LGPD</h4>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">
+                Comprovações anônimas de atendimento ao Direito ao Esquecimento (Art. 18, VI da Lei 13.709/2018).
+              </p>
+            </div>
+          </div>
+          <Button
+            label="Exportar Comprovantes (JSON)"
+            icon="pi pi-download"
+            size="small"
+            severity="secondary"
+            outlined
+            :disabled="store.lgpdAudits.length === 0"
+            @click="exportLgpdAuditsJson"
+          />
+        </div>
+
+        <DataTable :value="store.lgpdAudits" :loading="store.isLgpdAuditsLoading" responsiveLayout="stack" stripedRows>
+          <template #empty>
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+              <i class="pi pi-verified" style="font-size: 2.5rem; margin-bottom: 0.5rem; display: block; color: #6366f1;"></i>
+              Nenhum pedido de exclusão LGPD registrado até o momento.
+            </div>
+          </template>
+
+          <Column field="id" header="Protocolo / ID" style="min-width: 140px;">
+            <template #body="{ data }">
+              <Tag :value="data.id.substring(0, 8).toUpperCase()" severity="info" />
+            </template>
+          </Column>
+
+          <Column field="contactHash" header="Hash Criptográfico Anônimo (SHA-256)" style="min-width: 260px;">
+            <template #body="{ data }">
+              <span style="font-family: monospace; font-size: 0.75rem; word-break: break-all; color: var(--text-muted);">
+                {{ data.contactHash }}
+              </span>
+            </template>
+          </Column>
+
+          <Column field="executedAt" header="Data / Hora UTC" style="min-width: 180px;">
+            <template #body="{ data }">
+              <span>{{ new Date(data.executedAt).toLocaleString('pt-BR') }}</span>
+            </template>
+          </Column>
+
+          <Column field="legalBasis" header="Base Legal" style="min-width: 220px;">
+            <template #body="{ data }">
+              <Tag :value="data.legalBasis" severity="secondary" />
+            </template>
+          </Column>
+
+          <Column field="requestedBy" header="Origem da Solicitação" style="min-width: 150px;">
+            <template #body="{ data }">
+              <span style="font-size: 0.85rem; font-weight: 500;">{{ data.requestedBy }}</span>
             </template>
           </Column>
         </DataTable>

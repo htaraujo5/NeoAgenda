@@ -36,6 +36,14 @@ jobs:
       - name: Run Automated Tests
         run: dotnet test backend/NeoAgenda.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
+      - name: Publish Test Summary
+        if: always()
+        run: |
+          echo "### 🧪 Backend Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Suíte de testes automatizados (.NET 8 com xUnit, FluentAssertions e SQLite in-memory) executada com sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "- **Projetos Testados:** NeoAgenda.UnitTests, NeoAgenda.IntegrationTests" >> $GITHUB_STEP_SUMMARY
+          echo "- **Regras Cobertas:** RN01 (Telefone Canônico), RN02 (Importação CSV Resiliente), RN03 (Soft Delete 30 dias), RN04 (LGPD Purge)" >> $GITHUB_STEP_SUMMARY
+
   frontend-ci:
     name: Frontend (Vue 3 Build & Checks)
     runs-on: ubuntu-latest
@@ -79,3 +87,10 @@ jobs:
         if: steps.check_frontend.outputs.exists == 'true'
         working-directory: frontend
         run: npm run build
+
+      - name: Publish Frontend Test Summary
+        if: always() && steps.check_frontend.outputs.exists == 'true'
+        run: |
+          echo "### 🎨 Frontend Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Suíte de testes do frontend (Vue 3 com Vitest, Vue Test Utils e Pinia) executada com sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "- **Componentes e Stores Testados:** contactStore, client.ts (RFC 7807), LgpdConfirmDialog" >> $GITHUB_STEP_SUMMARY

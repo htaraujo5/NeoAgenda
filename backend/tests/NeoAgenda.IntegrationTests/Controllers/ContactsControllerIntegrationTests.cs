@@ -67,6 +67,13 @@ public class ContactsControllerIntegrationTests : IClassFixture<CustomWebApplica
         // 9. Garantir que após LGPD nem mesmo a lixeira contém o contato
         var afterLgpdGet = await _client.GetAsync($"/api/contacts/{created.Id}");
         afterLgpdGet.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // 10. Consultar rota de auditoria LGPD e verificar o registro anônimo gerado
+        var auditResponse = await _client.GetAsync("/api/contacts/lgpd-audits");
+        auditResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var audits = await auditResponse.Content.ReadFromJsonAsync<List<LgpdAuditLogDto>>();
+        audits.Should().NotBeNull();
+        audits!.Should().Contain(a => a.RequestedBy == "teste_integracao");
     }
 
     [Fact]

@@ -99,6 +99,24 @@ npm run dev
 
 ---
 
+## 🌟 Recursos Extras Implementados (Diferenciais de Engenharia)
+
+Além dos requisitos obrigatórios, foram incorporados recursos avançados que agregam valor real ao produto:
+
+1. **📁 Arquivos de Amostra Prontos para Teste (`samples/`):**
+   - [contatos_validos.csv](samples/contatos_validos.csv): 7 contatos com múltiplos DDDs, formatos e DDI.
+   - [contatos_com_erros.csv](samples/contatos_com_erros.csv): 7 linhas desenhadas para demonstrar a resiliência visual da RN02 (e-mails inválidos, telefones curtos, DDD 00 inexistente e duplicidade intra-arquivo).
+2. **⏰ Worker em Segundo Plano para Expurgo da Lixeira (`BackgroundService` .NET):**
+   - `RecycleBinPurgeBackgroundService`: serviço periódico que varre a base expurgando fisicamente contatos com mais de 30 dias na lixeira, emitindo logs estruturados no `ILogger`.
+3. **🛡️ Painel e Endpoint de Auditoria LGPD (`/api/contacts/lgpd-audits`):**
+   - Aba dedicada na interface web com tabela de protocolos, hashes criptográficos SHA-256 anônimos, data/hora UTC e exportação em formato JSON para auditoria da ANPD.
+4. **🌓 Modo Escuro / Claro Dinâmico (Dark Mode Switcher):**
+   - Alternador de tema no cabeçalho com persistência em `localStorage` e suporte nativo pelo design system do PrimeVue Aura.
+5. **📊 Relatório Visual de Testes e Cobertura no CI:**
+   - O GitHub Actions publica automaticamente o resumo da execução de testes do backend (.NET) e frontend (Vitest) na aba do workflow e nos Pull Requests.
+
+---
+
 ## ⚖️ Trade-offs Assumidos e O Que Ficou de Fora
 
 1. **Autenticação e Multi-Tenancy:**

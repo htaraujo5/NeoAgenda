@@ -59,6 +59,14 @@ export interface LgpdPurgeResultDto {
   purgedAt: string;
 }
 
+export interface LgpdAuditLogDto {
+  id: string;
+  contactHash: string;
+  executedAt: string;
+  legalBasis: string;
+  requestedBy: string;
+}
+
 export interface CsvRowErrorDto {
   lineNumber: number;
   rawLine: string;

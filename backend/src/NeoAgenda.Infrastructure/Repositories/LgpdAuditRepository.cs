@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using NeoAgenda.Domain.Entities;
 using NeoAgenda.Domain.Repositories;
 using NeoAgenda.Infrastructure.Data;
@@ -16,6 +17,13 @@ public class LgpdAuditRepository : ILgpdAuditRepository
     public async Task AddAsync(LgpdComplianceAudit audit, CancellationToken ct = default)
     {
         await _context.LgpdAudits.AddAsync(audit, ct);
+    }
+
+    public async Task<IReadOnlyList<LgpdComplianceAudit>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.LgpdAudits
+            .OrderByDescending(a => a.ExecutedAt)
+            .ToListAsync(ct);
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)
