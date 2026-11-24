@@ -2,77 +2,139 @@
 
 ## 1. Esquema Relacional de Entidades
 
-A base de dados contempla duas tabelas principais: `Contacts` (dados operacionais) e `LgpdComplianceAudits` (registro de conformidade com privacidade).
+O banco de dados do NeoAgenda é estruturado em 5 tabelas relacionais geridas pelo Entity Framework Core:
 
-### 1.1 Tabela `Contacts`
-Armazena os contatos cadastrados, seu histórico de datas e controle de soft delete.
-
-| Coluna | Tipo | Nulo? | Descrição |
-| :--- | :--- | :--- | :--- |
-| `Id` | `UUID` (Guid) | NÃO | Chave primária única do contato. |
-| `Name` | `VARCHAR(150)` | NÃO | Nome completo do contato. |
-| `Email` | `VARCHAR(254)` | NÃO | Endereço de e-mail válido. |
-| `PhoneOriginal` | `VARCHAR(30)` | NÃO | Telefone no formato digitado ou recebido no CSV. |
-| `PhoneNormalized`| `VARCHAR(20)` | NÃO | Telefone em formato canônico (ex: `+5511987654321`), sem máscaras. |
-| `CreatedAt` | `TIMESTAMPTZ` | NÃO | Data/hora UTC de criação do registro. |
-| `UpdatedAt` | `TIMESTAMPTZ` | SIM | Data/hora UTC da última edição dos dados. |
-| `IsDeleted` | `BOOLEAN` | NÃO | Indicador de exclusão lógica (padrão: `FALSE`). |
-| `DeletedAt` | `TIMESTAMPTZ` | SIM | Data/hora UTC da exclusão temporária (soft delete). |
-| `RetentionExpiresAt` | `TIMESTAMPTZ` | SIM | Data limite para restauração (`DeletedAt + 30 dias`). |
-
-### 1.2 Tabela `LgpdComplianceAudits`
-Armazena a trilha de auditoria para fins de compliance perante a LGPD.
-*Importante:* Não contém nenhum dado pessoal (PII) do titular.
-
-| Coluna | Tipo | Nulo? | Descrição |
-| :--- | :--- | :--- | :--- |
-| `Id` | `UUID` (Guid) | NÃO | Identificador do evento de auditoria. |
-| `ContactHash` | `VARCHAR(64)` | NÃO | Hash SHA-256 (do PhoneNormalized + Salt) para comprovação unívoca de eliminação. |
-| `ExecutedAt` | `TIMESTAMPTZ` | NÃO | Data/hora UTC da eliminação definitiva. |
-| `LegalBasis` | `VARCHAR(100)` | NÃO | Ex: "Artigo 18, VI da Lei 13.709/2018 (LGPD)". |
-| `RequestedBy` | `VARCHAR(100)` | NÃO | Canal ou identificação da requisição (ex: "portal_usuario_lgpd"). |
-
----
-
-## 2. Índices e Restrições de Unicidade
-
-### 2.1 Índice Parcial Exclusivo (Filtered Unique Index)
-Para garantir que telefones nunca se repitam entre contatos ativos:
-
-```sql
--- PostgreSQL / SQLite Filtered Unique Index
-CREATE UNIQUE INDEX "IX_Contacts_PhoneNormalized_Active"
-ON "Contacts" ("PhoneNormalized")
-WHERE "IsDeleted" = FALSE;
-```
-
-### 2.2 Índices de Consulta e Performance
-- `CREATE INDEX "IX_Contacts_Name" ON "Contacts" ("Name");` (Otimização para busca textual por prefixo)
-- `CREATE INDEX "IX_Contacts_Email" ON "Contacts" ("Email");`
-- `CREATE INDEX "IX_Contacts_RetentionExpiresAt" ON "Contacts" ("RetentionExpiresAt") WHERE "IsDeleted" = TRUE;` (Otimização para queries de expurgo de lixeira)
-
----
-
-## 3. Mapeamento com Entity Framework Core
-
-```csharp
-public class ContactConfiguration : IEntityTypeConfiguration<Contact>
-{
-    public void Configure(EntityTypeBuilder<Contact> builder)
-    {
-        builder.ToTable("Contacts");
-        builder.HasKey(c => c.Id);
-
-        builder.Property(c => c.Name).HasMaxLength(150).IsRequired();
-        builder.Property(c => c.Email).HasMaxLength(254).IsRequired();
-        builder.Property(c => c.PhoneOriginal).HasMaxLength(30).IsRequired();
-        builder.Property(c => c.PhoneNormalized).HasMaxLength(20).IsRequired();
-
-        builder.HasIndex(c => c.PhoneNormalized)
-               .IsUnique()
-               .HasFilter("\"IsDeleted\" = FALSE"); // no SQLite: HasFilter("IsDeleted = 0")
-
-        builder.HasQueryFilter(c => !c.IsDeleted);
+```mermaid
+erDiagram
+    Users ||--o{ Contacts : "owns / creates"
+    Users ||--o{ AccessLogs : "generates"
+    Contacts {
+        Guid Id PK
+        string Name
+        string Email
+        string PhoneOriginal
+        string PhoneNormalized
+        string CreatedBy
+        datetime CreatedAt
+        datetime UpdatedAt
+        boolean IsDeleted
+        datetime DeletedAt
+        datetime RetentionExpiresAt
     }
-}
+    Users {
+        Guid Id PK
+        string Username UK
+        string Name
+        string PasswordHash
+        string Role
+        datetime CreatedAt
+        string RefreshToken
+        datetime RefreshTokenExpiresAt
+    }
+    AccessLogs {
+        Guid Id PK
+        string Username
+        string Action
+        string IpAddress
+        string UserAgent
+        boolean Success
+        string Details
+        datetime Timestamp
+    }
+    RequestMetrics {
+        Guid Id PK
+        string Path
+        string Method
+        int StatusCode
+        double ElapsedMs
+        datetime Timestamp
+    }
+    LgpdComplianceAudits {
+        Guid Id PK
+        string ContactHash
+        datetime ExecutedAt
+        string LegalBasis
+        string RequestedBy
+    }
 ```
+
+---
+
+## 2. Detalhamento das Tabelas
+
+### 2.1 Tabela `Contacts`
+| Coluna | Tipo | Nulo? | Descrição |
+| :--- | :--- | :--- | :--- |
+| `Id` | `UUID` (Guid) | NÃO | Chave primária. |
+| `Name` | `VARCHAR(150)` | NÃO | Nome do contato. |
+| `Email` | `VARCHAR(254)` | NÃO | E-mail do contato. |
+| `PhoneOriginal` | `VARCHAR(30)` | NÃO | Telefone conforme digitado pelo usuário. |
+| `PhoneNormalized` | `VARCHAR(20)` | NÃO | Telefone normalizado no formato canônico E.164. |
+| `CreatedBy` | `VARCHAR(100)` | NÃO | Username do proprietário da agenda (padrão: "system"). |
+| `CreatedAt` | `TIMESTAMPTZ` | NÃO | Data/hora UTC de criação. |
+| `UpdatedAt` | `TIMESTAMPTZ` | SIM | Data/hora UTC da última alteração. |
+| `IsDeleted` | `BOOLEAN` | NÃO | Flag de soft delete (padrão: `FALSE`). |
+| `DeletedAt` | `TIMESTAMPTZ` | SIM | Data/hora UTC da exclusão temporária. |
+| `RetentionExpiresAt` | `TIMESTAMPTZ` | SIM | Prazo máximo de 30 dias para restauração. |
+
+### 2.2 Tabela `Users`
+| Coluna | Tipo | Nulo? | Descrição |
+| :--- | :--- | :--- | :--- |
+| `Id` | `UUID` (Guid) | NÃO | Identificador do usuário. |
+| `Username` | `VARCHAR(50)` | NÃO | Nome de usuário único para login (ex: `admin`, `helisson.araujo`). |
+| `Name` | `VARCHAR(100)` | NÃO | Nome completo de exibição. |
+| `PasswordHash` | `VARCHAR(256)` | NÃO | Hash SHA-256 da senha. |
+| `Role` | `VARCHAR(30)` | NÃO | Perfil de permissão (`Admin` ou `Usuario`). |
+| `CreatedAt` | `TIMESTAMPTZ` | NÃO | Data de criação da conta. |
+| `RefreshToken` | `VARCHAR(128)` | SIM | Token para renovação automática de sessão JWT. |
+| `RefreshTokenExpiresAt` | `TIMESTAMPTZ` | SIM | Validade do refresh token (7 dias). |
+
+### 2.3 Tabela `AccessLogs`
+| Coluna | Tipo | Nulo? | Descrição |
+| :--- | :--- | :--- | :--- |
+| `Id` | `UUID` (Guid) | NÃO | Chave primária do evento de acesso. |
+| `Username` | `VARCHAR(50)` | NÃO | Usuário envolvido na tentativa de acesso. |
+| `Action` | `VARCHAR(50)` | NÃO | Ex: `LOGIN_SUCCESS`, `LOGIN_FAILED`. |
+| `IpAddress` | `VARCHAR(45)` | NÃO | Endereço IP de origem da requisição. |
+| `UserAgent` | `VARCHAR(255)` | SIM | Dados de navegador e dispositivo. |
+| `Success` | `BOOLEAN` | NÃO | Indicador de êxito da tentativa. |
+| `Details` | `VARCHAR(255)` | SIM | Mensagem contextual ou motivo da falha. |
+| `Timestamp` | `TIMESTAMPTZ` | NÃO | Data e hora UTC do evento. |
+
+### 2.4 Tabela `RequestMetrics`
+| Coluna | Tipo | Nulo? | Descrição |
+| :--- | :--- | :--- | :--- |
+| `Id` | `UUID` (Guid) | NÃO | Identificador da métrica de requisição. |
+| `Path` | `VARCHAR(150)` | NÃO | Rota acessada (ex: `/api/contacts`). |
+| `Method` | `VARCHAR(10)` | NÃO | Verbo HTTP (`GET`, `POST`, `PUT`, `DELETE`). |
+| `StatusCode` | `INTEGER` | NÃO | Código HTTP de retorno. |
+| `ElapsedMs` | `DOUBLE PRECISION`| NÃO | Duração total do processamento em milissegundos. |
+| `Timestamp` | `TIMESTAMPTZ` | NÃO | Timestamp UTC da requisição. |
+
+### 2.5 Tabela `LgpdComplianceAudits`
+| Coluna | Tipo | Nulo? | Descrição |
+| :--- | :--- | :--- | :--- |
+| `Id` | `UUID` (Guid) | NÃO | Chave primária do protocolo LGPD. |
+| `ContactHash` | `VARCHAR(64)` | NÃO | Hash SHA-256 anônimo (`PhoneNormalized + ContactId`). |
+| `ExecutedAt` | `TIMESTAMPTZ` | NÃO | Momento da exclusão irreversível. |
+| `LegalBasis` | `VARCHAR(100)` | NÃO | Artigo 18, VI da Lei 13.709/2018. |
+| `RequestedBy` | `VARCHAR(100)` | NÃO | Usuário solicitante da exclusão. |
+
+---
+
+## 3. Estratégia de Índices e Performance
+
+1. **Filtered Unique Index de Telefone:**
+   ```sql
+   CREATE UNIQUE INDEX "IX_Contacts_PhoneNormalized" 
+   ON "Contacts" ("PhoneNormalized") 
+   WHERE "IsDeleted" = false;
+   ```
+2. **Índice de Usuário Único:**
+   ```sql
+   CREATE UNIQUE INDEX "IX_Users_Username" 
+   ON "Users" ("Username");
+   ```
+3. **Índice de Telemetria e Logs:**
+   - Índice em `AccessLogs.Timestamp` e `AccessLogs.Username` para consultas rápidas de auditoria.
+   - Índice em `RequestMetrics.Timestamp` para consolidação ágil de métricas de APM.

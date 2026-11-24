@@ -1,32 +1,75 @@
 # 05 — Especificação de Contratos da API REST
 
 A API segue padrões RESTful, codificação JSON em `UTF-8` e respostas de erro em conformidade com o padrão **RFC 7807 (Problem Details)**.
+Todas as rotas da API (exceto `/api/auth/login` e `/api/auth/refresh-token`) exigem o cabeçalho HTTP:
+```http
+Authorization: Bearer <seu_token_jwt>
+```
 
 ---
 
 ## 1. Sumário de Endpoints
 
-| Método | Rota | Descrição |
-| :--- | :--- | :--- |
-| `GET` | `/api/contacts` | Lista contatos ativos com paginação, busca e ordenação |
-| `GET` | `/api/contacts/{id}` | Obtém detalhes de um contato ativo |
-| `POST` | `/api/contacts` | Cria novo contato com validação e unicidade |
-| `PUT` | `/api/contacts/{id}` | Atualiza dados de um contato existente |
-| `DELETE` | `/api/contacts/{id}` | Exclusão lógica (Soft Delete) com retenção de 30 dias |
-| `POST` | `/api/contacts/{id}/restore` | Restaura contato da lixeira para a listagem ativa |
-| `DELETE` | `/api/contacts/{id}/lgpd` | Exclusão definitiva irrevogável (LGPD - Direito ao Esquecimento) |
-| `GET` | `/api/contacts/recycle-bin` | Lista contatos excluídos temporariamente na lixeira |
-| `POST` | `/api/contacts/import-csv` | Importação em lote via arquivo CSV multipart |
-| `GET` | `/api/contacts/export-csv` | Exporta contatos ativos em formato CSV |
+### 1.1 Autenticação (`/api/auth`)
+| Método | Rota | Papel Mínimo | Descrição |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Público | Autentica usuário com username e senha, retornando JWT e Refresh Token |
+| `POST` | `/api/auth/refresh-token` | Público | Renova a sessão e emite um novo token JWT |
+| `POST` | `/api/auth/revoke` | `Usuario` | Revoga o Refresh Token ativo do usuário |
+
+### 1.2 Gestão de Contatos (`/api/contacts`)
+| Método | Rota | Papel Mínimo | Descrição |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/contacts` | `Usuario` | Lista contatos ativos (Usuário vê seus contatos; Admin vê todas as agendas) |
+| `GET` | `/api/contacts/{id}` | `Usuario` | Obtém detalhes de um contato ativo |
+| `POST` | `/api/contacts` | `Usuario` | Cadastra novo contato vinculando ao usuário logado |
+| `PUT` | `/api/contacts/{id}` | `Usuario` | Atualiza contato existente (usuário atualiza próprio; Admin atualiza qualquer) |
+| `DELETE` | `/api/contacts/{id}` | `Usuario` | Soft Delete (usuário exclui próprio; Admin exclui qualquer) |
+| `POST` | `/api/contacts/{id}/restore` | `Usuario` | Restaura contato da lixeira (usuário restaura próprio; Admin restaura qualquer) |
+| `DELETE` | `/api/contacts/{id}/lgpd` | `Usuario` | Exclusão definitiva LGPD (usuário expurga próprio; Admin expurga qualquer) |
+| `GET` | `/api/contacts/recycle-bin` | `Usuario` | Lista lixeira (Usuário vê seus excluídos; Admin vê lixeira geral) |
+| `GET` | `/api/contacts/lgpd-audits` | `Usuario` | Lista histórico anônimo de protocolos de exclusão LGPD |
+| `POST` | `/api/contacts/import-csv` | `Usuario` | Importação tolerante via CSV (vincula contatos criados ao usuário) |
+| `GET` | `/api/contacts/export-csv` | `Usuario` | Exporta contatos da agenda em CSV UTF-8 |
+
+### 1.3 Gestão de Acessos & Auditoria (`/api/access`)
+| Método | Rota | Papel Mínimo | Descrição |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/access/users` | `Admin` | Lista todos os usuários cadastrados e seus perfis de acesso |
+| `POST` | `/api/access/users` | `Admin` | Cadastra um novo usuário no sistema |
+| `GET` | `/api/access/logs` | `Admin` | Consulta o histórico geral de auditoria e tentativas de login |
+| `GET` | `/api/access/my-logs` | `Usuario` | Consulta o histórico de atividades e logins do próprio usuário logado |
+
+### 1.4 Telemetria de Desempenho APM (`/api/metrics`)
+| Método | Rota | Papel Mínimo | Descrição |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/metrics/summary` | `Admin` | Retorna métricas consolidadas de desempenho (p50, p95, p99, taxa de erro) |
+| `GET` | `/api/metrics/recent` | `Admin` | Lista as requisições mais recentes com latência e status HTTP |
 
 ---
 
-## 2. Detalhamento dos Endpoints
+## 2. Exemplos de Payloads
 
-### 2.1 Listagem de Contatos Ativos
-`GET /api/contacts?page=1&pageSize=10&search=maria&sortBy=name&sortDirection=asc`
+### 2.1 Autenticação (`POST /api/auth/login`)
+```json
+// Requisição
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
 
-**Resposta de Sucesso (200 OK):**
+// Resposta 200 OK
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "7qL8w9...",
+  "expiresAt": "2026-11-24T18:00:00Z",
+  "username": "admin",
+  "name": "Administrador do Sistema",
+  "role": "Admin"
+}
+```
+
+### 2.2 Listagem de Contatos Ativos (`GET /api/contacts`)
 ```json
 {
   "items": [
@@ -36,7 +79,8 @@ A API segue padrões RESTful, codificação JSON em `UTF-8` e respostas de erro 
       "email": "maria@exemplo.com",
       "phoneOriginal": "(11) 98765-4321",
       "phoneNormalized": "+5511987654321",
-      "createdAt": "2026-11-20T14:30:00Z",
+      "createdBy": "helisson.araujo",
+      "createdAt": "2026-11-24T12:00:00Z",
       "updatedAt": null
     }
   ],
@@ -47,115 +91,14 @@ A API segue padrões RESTful, codificação JSON em `UTF-8` e respostas de erro 
 }
 ```
 
----
-
-### 2.2 Criação de Contato
-`POST /api/contacts`
-
-**Payload de Entrada:**
+### 2.3 Resposta de Métricas APM (`GET /api/metrics/summary`)
 ```json
 {
-  "name": "Carlos Eduardo",
-  "email": "carlos@exemplo.com",
-  "phone": "+55 (11) 91234-5678"
-}
-```
-
-**Respostas Possíveis:**
-- `201 Created`: Retorna o contato criado com `Location` header.
-- `400 Bad Request`: Erros de validação (RFC 7807).
-- `409 Conflict`: Telefone duplicado já cadastrado.
-
-**Exemplo de Resposta 409 Conflict:**
-```json
-{
-  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.8",
-  "title": "Conflito de Unicidade",
-  "status": 409,
-  "detail": "O telefone informado já está associado a outro contato ativo (Carlos Eduardo)."
-}
-```
-
----
-
-### 2.3 Exclusão Temporária (Soft Delete)
-`DELETE /api/contacts/{id}`
-
-**Resposta (200 OK):**
-```json
-{
-  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "message": "Contato movido para a lixeira. Restauração permitida por 30 dias.",
-  "deletedAt": "2026-11-23T20:00:00Z",
-  "retentionExpiresAt": "2026-12-23T20:00:00Z"
-}
-```
-
----
-
-### 2.4 Restauração de Contato
-`POST /api/contacts/{id}/restore`
-
-**Respostas Possíveis:**
-- `200 OK`: Contato restaurado com sucesso.
-- `404 Not Found`: Contato não encontrado ou não está excluído.
-- `410 Gone`: Prazo de retenção de 30 dias expirado.
-- `409 Conflict`: O telefone do contato a ser restaurado foi assumido por outro contato ativo durante o período na lixeira.
-
----
-
-### 2.5 Exclusão Definitiva por LGPD
-`DELETE /api/contacts/{id}/lgpd`
-
-**Payload de Entrada (Opcional):**
-```json
-{
-  "confirmation": true,
-  "legalReason": "Solicitação explícita do titular (Art. 18, VI LGPD)"
-}
-```
-
-**Resposta (200 OK):**
-```json
-{
-  "protocol": "LGPD-PURGE-20261123-A9B8",
-  "message": "Todos os dados pessoais do titular foram permanentemente e irreversivelmente destruídos.",
-  "purgedAt": "2026-11-23T20:05:00Z"
-}
-```
-
----
-
-### 2.6 Importação em Lote via CSV
-`POST /api/contacts/import-csv`
-*Content-Type: multipart/form-data*
-*Campo: file (arquivo .csv)*
-
-**Resposta de Sucesso (200 OK):**
-```json
-{
-  "totalRows": 25,
-  "importedCount": 22,
-  "failedCount": 3,
-  "errors": [
-    {
-      "line": 5,
-      "raw": "Ana;;(11) 99999-1111",
-      "field": "Email",
-      "reason": "O e-mail é obrigatório e deve ter formato válido."
-    },
-    {
-      "line": 14,
-      "raw": "Pedro;pedro@teste.com;11987654321",
-      "field": "Phone",
-      "reason": "Telefone duplicado com contato já cadastrado no sistema."
-    },
-    {
-      "line": 18,
-      "raw": "Lucas;lucas@teste.com;11987654321",
-      "field": "Phone",
-      "reason": "Telefone duplicado com a linha 14 do mesmo arquivo."
-    }
-  ]
+  "totalRequests": 154,
+  "averageElapsedMs": 14.2,
+  "p50ElapsedMs": 8.5,
+  "p95ElapsedMs": 42.1,
+  "p99ElapsedMs": 88.0,
+  "errorRatePercent": 0.65
 }
 ```
