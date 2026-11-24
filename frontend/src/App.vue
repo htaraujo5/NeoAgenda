@@ -207,11 +207,6 @@ async function handleLogout() {
             <template v-else-if="currentNav === 'metrics'">Telemetria isolada com latência média, percentil P95 e status codes da API.</template>
           </span>
         </div>
-
-        <Tag
-          :value="authStore.isAdmin ? 'Acesso Total (Admin)' : 'Acesso Limitado (Usuário)'"
-          :severity="authStore.isAdmin ? 'danger' : 'info'"
-        />
       </header>
 
       <!-- Painel Principal Renderizado Conforme Navegação -->
