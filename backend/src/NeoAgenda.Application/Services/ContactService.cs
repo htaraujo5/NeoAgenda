@@ -14,15 +14,18 @@ public class ContactService : IContactService
     private readonly IContactRepository _contactRepository;
     private readonly ILgpdAuditRepository _lgpdAuditRepository;
     private readonly IPhoneNormalizer _phoneNormalizer;
+    private readonly ICsvContactParser _csvContactParser;
 
     public ContactService(
         IContactRepository contactRepository,
         ILgpdAuditRepository lgpdAuditRepository,
-        IPhoneNormalizer phoneNormalizer)
+        IPhoneNormalizer phoneNormalizer,
+        ICsvContactParser csvContactParser)
     {
         _contactRepository = contactRepository;
         _lgpdAuditRepository = lgpdAuditRepository;
         _phoneNormalizer = phoneNormalizer;
+        _csvContactParser = csvContactParser;
     }
 
     public async Task<PagedResultDto<ContactDto>> GetActivePagedAsync(
@@ -185,6 +188,74 @@ public class ContactService : IContactService
             c.GetDaysRemainingInRecycleBin(now),
             !c.CanBeRestored(now)
         )).ToList();
+    }
+
+    public async Task<CsvImportResultDto> ImportCsvAsync(Stream csvStream, CancellationToken ct = default)
+    {
+        var parseResult = await _csvContactParser.ParseAsync(csvStream, ct);
+        var importedContacts = new List<ContactDto>();
+        var errors = new List<CsvRowErrorDto>(
+            parseResult.Errors.Select(e => new CsvRowErrorDto(e.LineNumber, e.RawLine, e.Field, e.Reason))
+        );
+
+        foreach (var record in parseResult.ValidRecords)
+        {
+            // Valida se o telefone já existe no banco de dados entre os contatos ativos
+            var exists = await _contactRepository.ExistsByNormalizedPhoneAsync(record.PhoneNormalized, null, ct);
+            if (exists)
+            {
+                errors.Add(new CsvRowErrorDto(
+                    record.LineNumber,
+                    record.RawLine,
+                    "Phone",
+                    $"O telefone ({record.PhoneOriginal}) já está cadastrado no sistema."
+                ));
+                continue;
+            }
+
+            var contact = Contact.Create(record.Name, record.Email, record.PhoneOriginal, record.PhoneNormalized);
+            await _contactRepository.AddAsync(contact, ct);
+            importedContacts.Add(MapToDto(contact));
+        }
+
+        if (importedContacts.Count > 0)
+        {
+            await _contactRepository.SaveChangesAsync(ct);
+        }
+
+        var totalRows = parseResult.TotalRows;
+        if (totalRows == 0 && (importedContacts.Count + errors.Count) > 0)
+        {
+            totalRows = importedContacts.Count + errors.Count;
+        }
+
+        return new CsvImportResultDto(
+            totalRows,
+            importedContacts.Count,
+            errors.Count,
+            errors.OrderBy(e => e.LineNumber).ToList(),
+            importedContacts
+        );
+    }
+
+    public async Task<byte[]> ExportCsvAsync(CancellationToken ct = default)
+    {
+        var (items, _) = await _contactRepository.GetActivePagedAsync(null, 1, 100000, "name", false, ct);
+        var sb = new StringBuilder();
+        sb.AppendLine("Nome;Email;Telefone;DataCadastro");
+
+        foreach (var contact in items)
+        {
+            var line = $"\"{EscapeCsv(contact.Name)}\";\"{EscapeCsv(contact.Email)}\";\"{EscapeCsv(contact.PhoneOriginal)}\";\"{contact.CreatedAt:yyyy-MM-dd HH:mm:ss}\"";
+            sb.AppendLine(line);
+        }
+
+        return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        return value.Replace("\"", "\"\"");
     }
 
     private static ContactDto MapToDto(Contact contact)

@@ -60,3 +60,18 @@ public record LgpdPurgeResultDto(
     string Message,
     DateTime PurgedAt
 );
+
+public record CsvRowErrorDto(
+    int LineNumber,
+    string RawLine,
+    string? Field,
+    string Reason
+);
+
+public record CsvImportResultDto(
+    int TotalRows,
+    int ImportedCount,
+    int FailedCount,
+    IReadOnlyList<CsvRowErrorDto> Errors,
+    IReadOnlyList<ContactDto> ImportedContacts
+);
