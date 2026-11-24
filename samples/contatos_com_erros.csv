@@ -1,0 +1,8 @@
+nome;email;telefone
+Mariana Santos;mariana.santos@teste.com;(11) 98111-2233
+Linha Com Nome;email.invalido_sem_arroba.com;(11) 98222-3344
+;sem.nome@teste.com;(21) 98333-4455
+Carlos Rocha;carlos.rocha@teste.com;12345
+Aline Peixoto;aline.peixoto@teste.com;(00) 98555-6677
+Duplicado IntraArquivo;duplicado@teste.com;11981112233
+Paulo Sergio;paulo.sergio@teste.com;(41) 98666-7788

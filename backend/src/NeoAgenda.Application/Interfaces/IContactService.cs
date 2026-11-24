@@ -29,6 +29,8 @@ public interface IContactService
 
     Task<IReadOnlyList<RecycleBinContactDto>> GetRecycleBinAsync(CancellationToken ct = default);
 
+    Task<IReadOnlyList<LgpdAuditLogDto>> GetLgpdAuditLogsAsync(CancellationToken ct = default);
+
     Task<CsvImportResultDto> ImportCsvAsync(Stream csvStream, CancellationToken ct = default);
 
     Task<byte[]> ExportCsvAsync(CancellationToken ct = default);

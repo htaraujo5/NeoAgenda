@@ -67,6 +67,11 @@ export const contactApi = {
     return response.data;
   },
 
+  async getLgpdAudits(): Promise<LgpdAuditLogDto[]> {
+    const response = await api.get<LgpdAuditLogDto[]>('/contacts/lgpd-audits');
+    return response.data;
+  },
+
   async importCsv(file: File): Promise<CsvImportResultDto> {
     const formData = new FormData();
     formData.append('file', file);

@@ -61,6 +61,14 @@ public record LgpdPurgeResultDto(
     DateTime PurgedAt
 );
 
+public record LgpdAuditLogDto(
+    Guid Id,
+    string ContactHash,
+    DateTime ExecutedAt,
+    string LegalBasis,
+    string RequestedBy
+);
+
 public record CsvRowErrorDto(
     int LineNumber,
     string RawLine,

@@ -21,5 +21,6 @@ public interface IContactRepository
         bool sortDesc, 
         CancellationToken ct = default);
     Task<IReadOnlyList<Contact>> GetRecycleBinAsync(CancellationToken ct = default);
+    Task<int> PurgeExpiredRecycleBinAsync(DateTime expirationThreshold, CancellationToken ct = default);
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

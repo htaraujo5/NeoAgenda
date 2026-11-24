@@ -8,5 +8,6 @@ namespace NeoAgenda.Domain.Repositories;
 public interface ILgpdAuditRepository
 {
     Task AddAsync(LgpdComplianceAudit audit, CancellationToken ct = default);
+    Task<IReadOnlyList<LgpdComplianceAudit>> GetAllAsync(CancellationToken ct = default);
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

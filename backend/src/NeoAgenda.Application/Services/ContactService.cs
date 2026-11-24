@@ -190,6 +190,18 @@ public class ContactService : IContactService
         )).ToList();
     }
 
+    public async Task<IReadOnlyList<LgpdAuditLogDto>> GetLgpdAuditLogsAsync(CancellationToken ct = default)
+    {
+        var audits = await _lgpdAuditRepository.GetAllAsync(ct);
+        return audits.Select(a => new LgpdAuditLogDto(
+            a.Id,
+            a.ContactHash,
+            a.ExecutedAt,
+            a.LegalBasis,
+            a.RequestedBy
+        )).ToList();
+    }
+
     public async Task<CsvImportResultDto> ImportCsvAsync(Stream csvStream, CancellationToken ct = default)
     {
         var parseResult = await _csvContactParser.ParseAsync(csvStream, ct);

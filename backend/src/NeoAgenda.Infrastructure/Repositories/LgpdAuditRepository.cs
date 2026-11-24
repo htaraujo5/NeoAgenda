@@ -18,6 +18,13 @@ public class LgpdAuditRepository : ILgpdAuditRepository
         await _context.LgpdAudits.AddAsync(audit, ct);
     }
 
+    public async Task<IReadOnlyList<LgpdComplianceAudit>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.LgpdAudits
+            .OrderByDescending(a => a.ExecutedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         return await _context.SaveChangesAsync(ct);

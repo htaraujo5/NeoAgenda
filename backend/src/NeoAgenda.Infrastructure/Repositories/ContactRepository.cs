@@ -107,6 +107,22 @@ public class ContactRepository : IContactRepository
             .ToListAsync(ct);
     }
 
+    public async Task<int> PurgeExpiredRecycleBinAsync(DateTime expirationThreshold, CancellationToken ct = default)
+    {
+        var expiredContacts = await _context.Contacts
+            .IgnoreQueryFilters()
+            .Where(c => c.IsDeleted && c.RetentionExpiresAt.HasValue && c.RetentionExpiresAt.Value <= expirationThreshold)
+            .ToListAsync(ct);
+
+        if (expiredContacts.Count > 0)
+        {
+            _context.Contacts.RemoveRange(expiredContacts);
+            return await _context.SaveChangesAsync(ct);
+        }
+
+        return 0;
+    }
+
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         return await _context.SaveChangesAsync(ct);
