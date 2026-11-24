@@ -18,6 +18,7 @@ As especificações aqui reunidas funcionam como o **Contexto Primário de IA**,
 | **[06-design-frontend-ux.md](file:///home/helisson/Projetos/NeoAgenda/especs/06-design-frontend-ux.md)** | Design de Interface e Experiência do Usuário (UX) | Componentes PrimeVue, telas (Listagem, Edição, Lixeira com contagem de 30 dias, Modal LGPD, Importador CSV com feedback). |
 | **[07-estrategia-de-testes.md](file:///home/helisson/Projetos/NeoAgenda/especs/07-estrategia-de-testes.md)** | Estratégia e Casos de Testes Automatizados | Pirâmide de testes, matriz de testes unitários de regras críticas, testes de integração de API e testes de ponta a ponta. |
 | **[08-infraestrutura-e-docker.md](file:///home/helisson/Projetos/NeoAgenda/especs/08-infraestrutura-e-docker.md)** | Infraestrutura, Docker e Execução | Dockerfiles multi-stage, Docker Compose unificado, scripts de execução e verificação de saúde da aplicação. |
+| **[09-roadmap-implementacao.md](file:///home/helisson/Projetos/NeoAgenda/especs/09-roadmap-implementacao.md)** | Roadmap de Implementação e Git Flow | Fases de desenvolvimento, divisão de branches `feature/...` e entregáveis por etapa. |
 
 ---
 

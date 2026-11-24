@@ -1,0 +1,62 @@
+namespace NeoAgenda.Application.DTOs;
+
+public record ContactDto(
+    Guid Id,
+    string Name,
+    string Email,
+    string PhoneOriginal,
+    string PhoneNormalized,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt
+);
+
+public record CreateContactDto(
+    string Name,
+    string Email,
+    string Phone
+);
+
+public record UpdateContactDto(
+    string Name,
+    string Email,
+    string Phone
+);
+
+public record PagedResultDto<T>(
+    IReadOnlyList<T> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages
+);
+
+public record RecycleBinContactDto(
+    Guid Id,
+    string Name,
+    string Email,
+    string PhoneOriginal,
+    string PhoneNormalized,
+    DateTime DeletedAt,
+    DateTime RetentionExpiresAt,
+    int DaysRemaining,
+    bool IsExpired
+);
+
+public record SoftDeleteResultDto(
+    Guid Id,
+    string Message,
+    DateTime DeletedAt,
+    DateTime RetentionExpiresAt
+);
+
+public record RestoreContactResultDto(
+    Guid Id,
+    string Message,
+    ContactDto Contact
+);
+
+public record LgpdPurgeResultDto(
+    string Protocol,
+    string Message,
+    DateTime PurgedAt
+);
