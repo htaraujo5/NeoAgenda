@@ -57,9 +57,13 @@ function handlePurge() {
         <div><strong>Telefone:</strong> {{ contact?.phoneOriginal }}</div>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;" @click="confirmed = !confirmed">
-        <Checkbox v-model="confirmed" :binary="true" inputId="lgpd-consent" />
-        <label for="lgpd-consent" style="font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+      <div class="consent-container">
+        <Checkbox
+          v-model="confirmed"
+          :binary="true"
+          inputId="lgpd-consent"
+        />
+        <label for="lgpd-consent" class="consent-label">
           Confirmo que o titular solicitou a eliminação definitiva dos seus dados pessoais.
         </label>
       </div>
@@ -77,3 +81,24 @@ function handlePurge() {
     </template>
   </Dialog>
 </template>
+
+<style scoped>
+.consent-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  user-select: none;
+}
+
+.consent-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  line-height: 1.4;
+}
+</style>
